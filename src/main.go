@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -10,40 +11,49 @@ import (
 
 var port = ":8080"
 var upgrader = websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024}
-var users = []*User{}
 var messages = make(chan Message)
 
-type User struct {
-	conn *websocket.Conn
-	id   string
-}
+var users = make(map[string]*websocket.Conn)
+var userMutex sync.Mutex
 
 type Message struct {
+	userId  string
 	message string
-	user    *User
 }
 
+// **** I need to add mutexes to all of these elements to ensure only one access for writing and one for read (make a separate struct for this)
+
 // Receive messages from a connection
-func receiveMsg(user *User, messages chan<- Message) {
+func receiveMsg(userId string, messages chan<- Message) {
+	// Get the user connection
+	conn, ok := users[userId]
+
+	if !ok {
+		log.Println("Could not lookup user connection")
+		return
+	}
+
 	for {
-		_, p, err := user.conn.ReadMessage()
+		// Read the message
+		_, p, err := conn.ReadMessage()
 
 		if err != nil {
-			// TODO add logic for removing connection from pool upon error
 			log.Println("Failed to read message from server")
+			delete(users, userId)
 			return
 		}
 
-		log.Println(user.id + ": " + string(p))
-		messages <- Message{user: user, message: string(p)}
+		// Print the message
+		log.Println(userId + ": " + string(p))
+		messages <- Message{userId: userId, message: string(p)}
 	}
 }
 
-// Broadcast messages to all connections
-func broadcastMsg(users *[]*User, messages <-chan Message) {
+// Broadcast message to all connections
+func broadcastMsg(messages <-chan Message) {
 	for msg := range messages {
-		for _, user := range *users {
-			if err := user.conn.WriteMessage(1, []byte(user.id+": "+msg.message)); err != nil {
+		for userId, conn := range users {
+			if err := conn.WriteMessage(1, []byte(userId+": "+msg.message)); err != nil {
 				log.Println("Failed to send message to user")
 			}
 		}
@@ -61,10 +71,11 @@ func handleWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user := User{conn: ws, id: uuid.NewString()}
+	// Add user to connection pool
+	userId := uuid.NewString()
+	users[userId] = ws
 
-	users = append(users, &user)
-	receiveMsg(&user, messages)
+	receiveMsg(userId, messages)
 }
 
 func main() {
@@ -72,6 +83,6 @@ func main() {
 
 	log.Println("Listening on port", port)
 
-	go broadcastMsg(&users, messages)
+	go broadcastMsg(messages)
 	log.Fatal(http.ListenAndServe(port, nil))
 }
