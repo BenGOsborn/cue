@@ -15,31 +15,24 @@ var upgrader = websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024}
 // Receive messages from a connection
 func receiveMsg(id string, connections *utils.Connections, messages chan<- utils.Message) {
 	for {
-		// Retrieve the connection
-		var conn *websocket.Conn
+		// Read and process messages
+		if ok, err := connections.Apply(id, func(id string, conn *websocket.Conn) error {
+			_, p, err := conn.ReadMessage()
 
-		if ok, err := connections.Apply(id, func(id string, conn_ *websocket.Conn) error {
-			conn = conn_
+			if err != nil {
+				return err
+			}
+
+			msg := string(p)
+			log.Println(id + ": " + msg)
+			messages <- utils.Message{Id: id, Message: msg}
 
 			return nil
 		}); !ok || err != nil {
-			log.Println("Failed to retrieve connection.")
-			return
-		}
-
-		// Read the message
-		_, p, err := conn.ReadMessage()
-
-		if err != nil {
-			log.Println("Failed to retrieve connection.")
+			log.Println("Connection failed.")
 			connections.Remove(id)
 			return
 		}
-
-		// Process the message
-		msg := string(p)
-		log.Println(id + ": " + msg)
-		messages <- utils.Message{Id: id, Message: msg}
 	}
 }
 
