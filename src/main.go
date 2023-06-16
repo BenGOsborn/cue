@@ -3,86 +3,81 @@ package main
 import (
 	"log"
 	"net/http"
-	"sync"
 
+	"github.com/bengosborn/cue/utils"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
 var port = ":8080"
 var upgrader = websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024}
-var messages = make(chan Message)
-
-var users = make(map[string]*websocket.Conn)
-var userMutex sync.Mutex
-
-type Message struct {
-	userId  string
-	message string
-}
-
-// **** I need to add mutexes to all of these elements to ensure only one access for writing and one for read (make a separate struct for this)
 
 // Receive messages from a connection
-func receiveMsg(userId string, messages chan<- Message) {
-	// Get the user connection
-	conn, ok := users[userId]
-
-	if !ok {
-		log.Println("Could not lookup user connection")
-		return
-	}
-
+func receiveMsg(id string, connections *utils.Connections, messages chan<- utils.Message) {
 	for {
 		// Read the message
-		_, p, err := conn.ReadMessage()
+		var msg string
 
-		if err != nil {
-			log.Println("Failed to read message from server")
-			delete(users, userId)
+		if ok, err := connections.Apply(id, func(id string, conn *websocket.Conn) error {
+			_, p, err := conn.ReadMessage()
+			msg = string(p)
+
+			return err
+		}); !ok || err != nil {
+			log.Println("Failed to retrieve message.")
+
+			connections.Remove(id)
+
 			return
 		}
 
-		// Print the message
-		log.Println(userId + ": " + string(p))
-		messages <- Message{userId: userId, message: string(p)}
+		// Log the message and send it to the queue
+		log.Println(id + ": " + msg)
+		messages <- utils.Message{Id: id, Message: msg}
 	}
 }
 
 // Broadcast message to all connections
-func broadcastMsg(messages <-chan Message) {
+func broadcastMsg(connections *utils.Connections, messages <-chan utils.Message) {
 	for msg := range messages {
-		for userId, conn := range users {
-			if err := conn.WriteMessage(1, []byte(userId+": "+msg.message)); err != nil {
-				log.Println("Failed to send message to user")
+		connections.ForEach(func(id string, conn *websocket.Conn) error {
+			if err := conn.WriteMessage(1, []byte(id+": "+msg.Message)); err != nil {
+				log.Println("Failed to send message to user", id)
 			}
-		}
+
+			return nil
+		})
 	}
 }
 
 // Handle incoming connection
-func handleWs(w http.ResponseWriter, r *http.Request) {
-	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
+func handleWs(connections *utils.Connections, messages chan<- utils.Message) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 
-	ws, err := upgrader.Upgrade(w, r, nil)
+		conn, err := upgrader.Upgrade(w, r, nil)
 
-	if err != nil {
-		log.Println("Could not upgrade websocket.")
-		return
+		if err != nil {
+			log.Println("Could not upgrade websocket.")
+			return
+		}
+
+		// Add connection to connection pool
+		id := uuid.NewString()
+		connections.Add(id, conn)
+
+		receiveMsg(id, connections, messages)
 	}
-
-	// Add user to connection pool
-	userId := uuid.NewString()
-	users[userId] = ws
-
-	receiveMsg(userId, messages)
 }
 
 func main() {
-	http.HandleFunc("/", handleWs)
+	messages := make(chan utils.Message)
+	connections := utils.NewConnections()
+
+	http.HandleFunc("/", handleWs(connections, messages))
 
 	log.Println("Listening on port", port)
 
-	go broadcastMsg(messages)
+	go broadcastMsg(connections, messages)
 	log.Fatal(http.ListenAndServe(port, nil))
 }
