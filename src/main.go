@@ -15,23 +15,29 @@ var upgrader = websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024}
 // Receive messages from a connection
 func receiveMsg(id string, connections *utils.Connections, messages chan<- utils.Message) {
 	for {
-		// Read the message
-		var msg string
+		// Retrieve the connection
+		var conn *websocket.Conn
 
-		if ok, err := connections.Apply(id, func(id string, conn *websocket.Conn) error {
-			_, p, err := conn.ReadMessage()
-			msg = string(p)
+		if ok, err := connections.Apply(id, func(id string, conn_ *websocket.Conn) error {
+			conn = conn_
 
-			return err
+			return nil
 		}); !ok || err != nil {
-			log.Println("Failed to retrieve message.")
-
-			connections.Remove(id)
-
+			log.Println("Failed to retrieve connection.")
 			return
 		}
 
-		// Log the message and send it to the queue
+		// Read the message
+		_, p, err := conn.ReadMessage()
+
+		if err != nil {
+			log.Println("Failed to retrieve connection.")
+			connections.Remove(id)
+			return
+		}
+
+		// Process the message
+		msg := string(p)
 		log.Println(id + ": " + msg)
 		messages <- utils.Message{Id: id, Message: msg}
 	}
@@ -43,6 +49,8 @@ func broadcastMsg(connections *utils.Connections, messages <-chan utils.Message)
 		connections.ForEach(func(id string, conn *websocket.Conn) error {
 			if err := conn.WriteMessage(1, []byte(id+": "+msg.Message)); err != nil {
 				log.Println("Failed to send message to user", id)
+			} else {
+				log.Println("Sent message to user", id)
 			}
 
 			return nil
