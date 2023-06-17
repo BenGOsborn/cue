@@ -36,7 +36,7 @@ func (connections *Connections) unlockRead(id string) error {
 	lock, ok := connections.mutex[id]
 
 	if !ok {
-		return errors.New("No lock with this id exists.")
+		return errors.New("no lock with this id exists")
 	}
 
 	lock.RUnlock()
@@ -63,7 +63,7 @@ func (connections *Connections) unlockWrite(id string) error {
 	lock, ok := connections.mutex[id]
 
 	if !ok {
-		return errors.New("No lock with this id exists.")
+		return errors.New("no lock with this id exists")
 	}
 
 	lock.Unlock()

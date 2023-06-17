@@ -22,12 +22,11 @@ func receive(id string, connections *gwUtils.Connections, logger *log.Logger) {
 				return err
 			}
 
-			msg := gwUtils.Message{Id: id, Message: string(p)}
-			Process(&msg, logger)
+			Process(gwUtils.Message{Id: id, Message: string(p)}, logger)
 
 			return nil
 		}); !ok || err != nil {
-			logger.Println("Connection failed.")
+			logger.Println(err)
 			connections.Remove(id)
 			return
 		}
@@ -42,7 +41,7 @@ func Handle(connections *gwUtils.Connections, logger *log.Logger) func(w http.Re
 		conn, err := upgrader.Upgrade(w, r, nil)
 
 		if err != nil {
-			logger.Println("Could not upgrade websocket.")
+			logger.Println(err)
 			return
 		}
 

@@ -7,6 +7,6 @@ import (
 )
 
 // Process a message
-func Process(message *gateway.Message, logger *log.Logger) {
+func Process(message gateway.Message, logger *log.Logger) {
 	log.Println(message.Id + ": " + message.Message)
 }

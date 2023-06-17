@@ -13,9 +13,7 @@ func Worker(connections *gwUtils.Connections, messages <-chan gwUtils.Message, l
 		// Send the message
 		connections.Apply(msg.Id, func(id string, conn *websocket.Conn) error {
 			if err := conn.WriteMessage(1, []byte(id+": "+msg.Message)); err != nil {
-				logger.Println("Failed to send message to user", id)
-			} else {
-				logger.Println("Sent message")
+				logger.Println(err)
 			}
 
 			return nil

@@ -29,6 +29,6 @@ func Start(addr string, connections *gwUtils.Connections, logger *log.Logger, wo
 
 	// Launch the event listener
 
-	logger.Println("Listening on address", addr)
+	logger.Println("listening on address", addr)
 	logger.Fatal(http.ListenAndServe(addr, nil))
 }
