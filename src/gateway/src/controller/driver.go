@@ -17,7 +17,7 @@ import (
 // Also remove the broadcast to all - it will NOT work in a distributed environment and is not needed.
 
 // Start the server
-func Start(addr string, connections *gwUtils.Connections, logger *log.Logger, workers int) {
+func Start(addr string, connections *gwUtils.Connections, workers int, queue *gwUtils.Queue, logger *log.Logger) {
 	messages := make(chan gwUtils.Message)
 
 	http.HandleFunc("/", Handle(connections, logger))
@@ -28,6 +28,7 @@ func Start(addr string, connections *gwUtils.Connections, logger *log.Logger, wo
 	}
 
 	// Launch the event listener
+	go Enqueue(queue, messages, logger)
 
 	logger.Println("listening on address", addr)
 	logger.Fatal(http.ListenAndServe(addr, nil))
