@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/bengosborn/cue/utils"
+	gwUtils "github.com/bengosborn/cue/gateway/src/utils"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
@@ -13,7 +13,7 @@ var port = ":8080"
 var upgrader = websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024}
 
 // Receive messages from a connection
-func receiveMsg(id string, connections *utils.Connections, messages chan<- utils.Message) {
+func receiveMsg(id string, connections *gwUtils.Connections, messages chan<- gwUtils.Message) {
 	for {
 		// Read and process messages
 		if ok, err := connections.Apply(id, func(id string, conn *websocket.Conn) error {
@@ -25,7 +25,7 @@ func receiveMsg(id string, connections *utils.Connections, messages chan<- utils
 
 			msg := string(p)
 			log.Println(id + ": " + msg)
-			messages <- utils.Message{Id: id, Message: msg}
+			messages <- gwUtils.Message{Id: id, Message: msg}
 
 			return nil
 		}); !ok || err != nil {
@@ -37,7 +37,7 @@ func receiveMsg(id string, connections *utils.Connections, messages chan<- utils
 }
 
 // Broadcast message to all connections
-func broadcastMsg(connections *utils.Connections, messages <-chan utils.Message) {
+func broadcastMsg(connections *gwUtils.Connections, messages <-chan gwUtils.Message) {
 	for msg := range messages {
 		connections.ForEach(func(id string, conn *websocket.Conn) error {
 			if err := conn.WriteMessage(1, []byte(id+": "+msg.Message)); err != nil {
@@ -52,7 +52,7 @@ func broadcastMsg(connections *utils.Connections, messages <-chan utils.Message)
 }
 
 // Handle incoming connection
-func handleWs(connections *utils.Connections, messages chan<- utils.Message) func(w http.ResponseWriter, r *http.Request) {
+func handleWs(connections *gwUtils.Connections, messages chan<- gwUtils.Message) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 
@@ -72,8 +72,8 @@ func handleWs(connections *utils.Connections, messages chan<- utils.Message) fun
 }
 
 func main() {
-	messages := make(chan utils.Message)
-	connections := utils.NewConnections()
+	messages := make(chan gwUtils.Message)
+	connections := gwUtils.NewConnections()
 
 	http.HandleFunc("/", handleWs(connections, messages))
 
@@ -83,7 +83,7 @@ func main() {
 	// into another channel for where the message should go and what category it should be assigned ??? (this needs to be scalable)
 	// Raw messagw from service -> message queue processing channel -> processed ready to be sent to message channel / broadcast to user channel / broadcast to all chanel
 
-	// **** For efficiency, we will have an "express" Kafka channel which when the message is sent this server id is attached to it, and then when the message is sent back
+	// **** For efficiency, we will have in "express" Kafka channel which when the message is sent this server id is attached to it, and then when the message is sent back
 	// it will go directly to a queue only listened to by this server which will process it - if the message does not belong to this user, we will add it to a global queue
 	// which is listened to by all servers.
 	// Also remove the broadcast to all - it will NOT work in a distributed environment and is not needed.
