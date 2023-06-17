@@ -31,5 +31,5 @@ func Start(addr string, connections *gwUtils.Connections, workers int, queue *gw
 	go Enqueue(queue, messages, logger)
 
 	logger.Println("listening on address", addr)
-	logger.Fatal(http.ListenAndServe(addr, nil))
+	logger.Fatalln(http.ListenAndServe(addr, nil))
 }
