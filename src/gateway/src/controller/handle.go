@@ -42,7 +42,7 @@ func receive(id string, connections *gwUtils.Connections, logger *log.Logger, pr
 }
 
 // Handle incoming connection
-func Handle(connections *gwUtils.Connections, logger *log.Logger, process func(string, *gwUtils.Message) error) func(w http.ResponseWriter, r *http.Request) {
+func HandleWs(connections *gwUtils.Connections, logger *log.Logger, process func(string, *gwUtils.Message) error) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 

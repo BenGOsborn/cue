@@ -16,8 +16,10 @@ var workers = 10
 func main() {
 	logger := log.New(os.Stdout, "[Gateway] ", log.Ldate|log.Ltime)
 
-	if err := godotenv.Load(); err != nil {
-		logger.Fatalln(err)
+	if os.Getenv("ENV") != "production" {
+		if err := godotenv.Load(); err != nil {
+			logger.Fatalln(err)
+		}
 	}
 
 	queue := utils.NewQueue(os.Getenv("KAFKA_USERNAME"), os.Getenv("KAFKA_PASSWORD"), os.Getenv("KAFKA_ENDPOINT"), os.Getenv("KAFKA_TOPIC"), logger)

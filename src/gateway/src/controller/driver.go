@@ -12,7 +12,8 @@ import (
 func Start(addr string, connections *gwUtils.Connections, workers int, queue *utils.Queue, logger *log.Logger, process func(string, *gwUtils.Message) error) {
 	messages := make(chan *utils.QueueMessage)
 
-	http.HandleFunc("/", Handle(connections, logger, process))
+	http.HandleFunc("/ws", HandleWs(connections, logger, process))
+	http.HandleFunc("/auth", HandleWs(connections, logger, process))
 
 	// Launch worker threads
 	for i := 0; i < workers; i++ {

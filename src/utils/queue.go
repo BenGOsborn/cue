@@ -76,8 +76,6 @@ func (queue *Queue) Listen(fn func(*QueueMessage) error) error {
 		if err := fn(&queueMessage); err != nil {
 			return err
 		}
-
-		queue.reader.CommitMessages(context.TODO(), msg)
 	}
 }
 

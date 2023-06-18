@@ -1,0 +1,1 @@
+docker build -t server -f Docker/gateway.Dockerfile ./src
