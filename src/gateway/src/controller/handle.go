@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
@@ -12,7 +13,7 @@ import (
 var upgrader = websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024}
 
 // Process incoming messages
-func receive(id string, connections *gwUtils.Connections, logger *log.Logger, process func(*gwUtils.Message) error) {
+func receive(id string, connections *gwUtils.Connections, logger *log.Logger, process func(string, *gwUtils.Message) error) {
 	for {
 		// Read and process messages
 		if ok, err := connections.Apply(id, func(id string, conn *websocket.Conn) error {
@@ -22,16 +23,16 @@ func receive(id string, connections *gwUtils.Connections, logger *log.Logger, pr
 				return err
 			}
 
-			if err := process(&message); err != nil {
+			if err := process(id, &message); err != nil {
 				return err
 			}
 
 			return nil
 		}); !ok || err != nil {
 			if !ok {
-				logger.Println("could not apply to given id")
+				logger.Println("receive.error: id does not exist")
 			} else {
-				logger.Println(err)
+				logger.Println(fmt.Sprint("receive.error: ", err))
 			}
 
 			connections.Remove(id)
@@ -41,14 +42,14 @@ func receive(id string, connections *gwUtils.Connections, logger *log.Logger, pr
 }
 
 // Handle incoming connection
-func Handle(connections *gwUtils.Connections, logger *log.Logger, process func(*gwUtils.Message) error) func(w http.ResponseWriter, r *http.Request) {
+func Handle(connections *gwUtils.Connections, logger *log.Logger, process func(string, *gwUtils.Message) error) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 
 		conn, err := upgrader.Upgrade(w, r, nil)
 
 		if err != nil {
-			logger.Println(err)
+			logger.Println(fmt.Sprint("Handle.error: ", err))
 			return
 		}
 

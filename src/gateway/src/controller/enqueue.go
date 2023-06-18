@@ -1,18 +1,19 @@
 package gateway
 
 import (
+	"fmt"
 	"log"
 
-	gwUtils "github.com/bengosborn/cue/gateway/src/utils"
+	utils "github.com/bengosborn/cue/utils"
 )
 
 // Enqueue an element from an event listener
-func Enqueue(queue *gwUtils.Queue, messages chan<- *gwUtils.QueueMessage, logger *log.Logger) {
-	if err := queue.Listen(func(qm *gwUtils.QueueMessage) error {
+func Enqueue(queue *utils.Queue, messages chan<- *utils.QueueMessage, logger *log.Logger) {
+	if err := queue.Listen(func(qm *utils.QueueMessage) error {
 		messages <- qm
 
 		return nil
 	}); err != nil {
-		logger.Fatalln(err)
+		logger.Fatalln(fmt.Sprint("Enqueue.error: ", err))
 	}
 }

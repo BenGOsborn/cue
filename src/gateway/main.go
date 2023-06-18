@@ -6,6 +6,7 @@ import (
 
 	gwController "github.com/bengosborn/cue/gateway/src/controller"
 	gwUtils "github.com/bengosborn/cue/gateway/src/utils"
+	utils "github.com/bengosborn/cue/utils"
 	"github.com/joho/godotenv"
 )
 
@@ -19,8 +20,8 @@ func main() {
 		logger.Fatalln(err)
 	}
 
-	queue := gwUtils.NewQueue(os.Getenv("KAFKA_USERNAME"), os.Getenv("KAFKA_PASSWORD"), os.Getenv("KAFKA_ENDPOINT"), os.Getenv("KAFKA_TOPIC"), logger)
+	queue := utils.NewQueue(os.Getenv("KAFKA_USERNAME"), os.Getenv("KAFKA_PASSWORD"), os.Getenv("KAFKA_ENDPOINT"), os.Getenv("KAFKA_TOPIC"), logger)
 	connections := gwUtils.NewConnections()
 
-	gwController.Start(addr, connections, workers, queue, logger)
+	gwController.Start(addr, connections, workers, queue, logger, gwController.Process(logger, queue))
 }

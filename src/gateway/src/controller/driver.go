@@ -5,13 +5,14 @@ import (
 	"net/http"
 
 	gwUtils "github.com/bengosborn/cue/gateway/src/utils"
+	utils "github.com/bengosborn/cue/utils"
 )
 
 // Start the server
-func Start(addr string, connections *gwUtils.Connections, workers int, queue *gwUtils.Queue, logger *log.Logger) {
-	messages := make(chan *gwUtils.QueueMessage)
+func Start(addr string, connections *gwUtils.Connections, workers int, queue *utils.Queue, logger *log.Logger, process func(string, *gwUtils.Message) error) {
+	messages := make(chan *utils.QueueMessage)
 
-	http.HandleFunc("/", Handle(connections, logger, Process(logger)))
+	http.HandleFunc("/", Handle(connections, logger, process))
 
 	// Launch worker threads
 	for i := 0; i < workers; i++ {
