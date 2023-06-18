@@ -94,6 +94,7 @@ func (connections *Connections) Remove(id string) {
 	connections.lockWrite(id)
 	defer connections.unlockWrite(id)
 
+	connections.connections[id].Close()
 	delete(connections.connections, id)
 }
 

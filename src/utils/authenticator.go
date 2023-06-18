@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -48,6 +49,8 @@ func (a *Authenticator) VerifyIDToken(token string) (*oidc.IDToken, error) {
 		return nil, errors.New("invalid token format")
 	}
 	token = split[1]
+
+	fmt.Println(token)
 
 	oidcConfig := &oidc.Config{
 		ClientID: a.config.ClientID,

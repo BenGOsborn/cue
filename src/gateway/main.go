@@ -25,6 +25,8 @@ func Process(logger *log.Logger, queue *utils.Queue, authenticator *utils.Authen
 		user, err := authenticator.VerifyIDToken(msg.Auth)
 
 		if err != nil {
+			logger.Println(fmt.Sprint("process.error: ", err))
+
 			return nil
 		}
 
