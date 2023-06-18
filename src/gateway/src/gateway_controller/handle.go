@@ -13,17 +13,17 @@ import (
 var upgrader = websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024}
 
 // Process incoming messages
-func receive(id string, connections *gwUtils.Connections, logger *log.Logger, process func(string, *gwUtils.Message) error) {
+func receive(receiver string, connections *gwUtils.Connections, logger *log.Logger, process func(string, *gwUtils.Message) error) {
 	for {
 		// Read and process messages
-		if ok, err := connections.Apply(id, func(id string, conn *websocket.Conn) error {
+		if ok, err := connections.Apply(receiver, func(receiver string, conn *websocket.Conn) error {
 			var message gwUtils.Message
 
 			if err := conn.ReadJSON(&message); err != nil {
 				return err
 			}
 
-			if err := process(id, &message); err != nil {
+			if err := process(receiver, &message); err != nil {
 				return err
 			}
 
@@ -35,7 +35,7 @@ func receive(id string, connections *gwUtils.Connections, logger *log.Logger, pr
 				logger.Println(fmt.Sprint("receive.error: ", err))
 			}
 
-			connections.Remove(id)
+			connections.Remove(receiver)
 
 			logger.Println("receive.removed: removed connection")
 

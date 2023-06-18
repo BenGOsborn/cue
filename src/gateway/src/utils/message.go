@@ -1,7 +1,11 @@
 package gateway
 
+import (
+	"github.com/bengosborn/cue/utils"
+)
+
 type Message struct {
-	Auth *string `json:"auth,omitempty"`
-	Type string  `json:"type"`
-	Body string  `json:"body"`
+	Auth      string          `json:"auth"`
+	EventType utils.EventType `json:"eventType"`
+	Body      string          `json:"body"`
 }

@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
@@ -40,19 +41,19 @@ func NewAuthenticator(ctx context.Context, auth0Domain string, auth0CallbackUrl 
 	}, nil
 }
 
-// VerifyIDToken verifies that an *oauth2.Token is a valid *oidc.IDToken.
-func (a *Authenticator) VerifyIDToken(token *oauth2.Token) (*oidc.IDToken, error) {
-	rawIDToken, ok := token.Extra("id_token").(string)
-
-	if !ok {
-		return nil, errors.New("no id_token field in oauth2 token")
+// Verifies  a token is valid
+func (a *Authenticator) VerifyIDToken(token string) (*oidc.IDToken, error) {
+	split := strings.Split(token, " ")
+	if len(split) != 2 {
+		return nil, errors.New("invalid token format")
 	}
+	token = split[1]
 
 	oidcConfig := &oidc.Config{
 		ClientID: a.config.ClientID,
 	}
 
-	return a.provider.Verifier(oidcConfig).Verify(a.ctx, rawIDToken)
+	return a.provider.Verifier(oidcConfig).Verify(a.ctx, token)
 }
 
 // Create a login URL with a new state

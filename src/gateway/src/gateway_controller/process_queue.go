@@ -13,7 +13,7 @@ import (
 // Process queued messages
 func ProcessQueue(connections *gwUtils.Connections, queue *utils.Queue, logger *log.Logger) {
 	if err := queue.Listen(func(queueMessage *utils.QueueMessage) {
-		if ok, err := connections.Apply(queueMessage.Receiver, func(id string, conn *websocket.Conn) error {
+		if ok, err := connections.Apply(queueMessage.Receiver, func(_ string, conn *websocket.Conn) error {
 			data, err := json.Marshal(queueMessage)
 
 			if err != nil {

@@ -17,18 +17,22 @@ import (
 var addr = ":8080"
 
 // Process a message
-func Process(logger *log.Logger, queue *utils.Queue, authenticator *utils.Authenticator, client *utils.Redis) func(string, *gwUtils.Message) error {
-	return func(id string, msg *gwUtils.Message) error {
-		logger.Println("Process.received: received raw message")
+func Process(logger *log.Logger, queue *utils.Queue, authenticator *utils.Authenticator) func(string, *gwUtils.Message) error {
+	return func(receiver string, msg *gwUtils.Message) error {
+		logger.Println("process.received: received raw message")
 
 		// Authenticate
-		// msg.Auth -> authenticate this once -> cache it -> pull from cache
+		user, err := authenticator.VerifyIDToken(msg.Auth)
+
+		if err != nil {
+			return nil
+		}
 
 		// Add to queue
-		queueMsg := utils.QueueMessage{Receiver: id, Type: msg.Type, Body: msg.Body}
+		queueMsg := utils.QueueMessage{Receiver: receiver, User: user, EventType: msg.EventType, Body: msg.Body}
 		queue.Send(&queueMsg)
 
-		logger.Println("Process.enqueued: added message to queue")
+		logger.Println("process.enqueued: added message to queue")
 
 		return nil
 	}
@@ -52,11 +56,11 @@ func main() {
 	connections := gwUtils.NewConnections()
 	defer connections.Close()
 
-	client, err := utils.NewRedis(ctx, os.Getenv("REDIS_URL"))
+	redis, err := utils.NewRedis(ctx, os.Getenv("REDIS_URL"))
 	if err != nil {
 		logger.Fatalln(fmt.Scan("main.error", err))
 	}
-	defer client.Close()
+	defer redis.Close()
 
 	queue, err := utils.NewQueue(ctx, os.Getenv("KAFKA_USERNAME"), os.Getenv("KAFKA_PASSWORD"), os.Getenv("KAFKA_ENDPOINT"), os.Getenv("KAFKA_TOPIC"), logger)
 	if err != nil {
@@ -69,8 +73,8 @@ func main() {
 		logger.Fatalln(fmt.Scan("main.error", err))
 	}
 
-	gwController.Attach(mux, "/ws", connections, queue, logger, Process(logger, queue, authenticator, client))
-	authController.Attach(mux, "/auth", "/auth/callback", logger, client, authenticator)
+	gwController.Attach(mux, "/ws", connections, []*utils.Queue{queue}, logger, Process(logger, queue, authenticator))
+	authController.Attach(mux, "/auth", "/auth/callback", logger, redis, authenticator)
 
 	fmt.Println("server listening on address", addr)
 	logger.Fatalln(server.ListenAndServe())

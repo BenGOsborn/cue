@@ -9,7 +9,7 @@ import (
 )
 
 // Handle the authentication callback
-func HandleCallback(client *utils.Redis, authenticator *utils.Authenticator, logger *log.Logger) func(w http.ResponseWriter, r *http.Request) {
+func HandleCallback(redis *utils.Redis, authenticator *utils.Authenticator, logger *log.Logger) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Verify the CSRF token
 		csrfCookie, err := r.Cookie(utils.AuthCSRFCookie)
@@ -26,7 +26,7 @@ func HandleCallback(client *utils.Redis, authenticator *utils.Authenticator, log
 			return
 		}
 
-		state := client.Get(utils.AuthCSRFCookie, csrfCookie.Value)
+		state := redis.Get(utils.AuthCSRFCookie, csrfCookie.Value)
 
 		if state != storedState {
 			http.Error(w, "State mismatch", http.StatusBadRequest)
@@ -53,6 +53,8 @@ func HandleCallback(client *utils.Redis, authenticator *utils.Authenticator, log
 		}
 
 		http.SetCookie(w, &authCookie)
+
+		logger.Println("callback.success: set authentication cookie")
 
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
