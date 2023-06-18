@@ -36,6 +36,9 @@ func receive(id string, connections *gwUtils.Connections, logger *log.Logger, pr
 			}
 
 			connections.Remove(id)
+
+			logger.Println("receive.removed: removed connection")
+
 			return
 		}
 	}
@@ -56,6 +59,8 @@ func HandleWs(connections *gwUtils.Connections, logger *log.Logger, process func
 		// Add connection to connection pool
 		id := uuid.NewString()
 		connections.Add(id, conn)
+
+		logger.Println("HandleWs.connection: added new connection")
 
 		// Start receiving messages
 		receive(id, connections, logger, process)

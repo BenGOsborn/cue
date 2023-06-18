@@ -4,9 +4,15 @@ services:
         build:
             dockerfile: ../Docker/gateway.Dockerfile
             context: ./src
-        ports:
-            - 8080:8080
         env_file:
             - .env
         environment:
             - ENV=production
+    nginx:
+        image: nginx:latest
+        depends_on:
+            - gateway
+        ports:
+            - 80:80
+        volumes:
+            - ./nginx/nginx.conf:/etc/nginx/nginx.conf

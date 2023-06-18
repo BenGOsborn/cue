@@ -13,7 +13,7 @@ func Start(addr string, connections *gwUtils.Connections, workers int, queue *ut
 	messages := make(chan *utils.QueueMessage)
 
 	http.HandleFunc("/ws", HandleWs(connections, logger, process))
-	http.HandleFunc("/auth", HandleWs(connections, logger, process))
+	// http.HandleFunc("/auth", HandleWs(connections, logger, process))
 
 	// Launch worker threads
 	for i := 0; i < workers; i++ {

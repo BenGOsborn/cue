@@ -18,7 +18,7 @@ type Queue struct {
 }
 
 // Initialize new queue topic
-func NewQueue(username string, password string, endpoint string, topicName string, logger *log.Logger) *Queue {
+func NewQueue(username string, password string, endpoint string, topicName string, logger *log.Logger) (*Queue, error) {
 	queue := Queue{}
 
 	mechanism, err := scram.Mechanism(scram.SHA512, username, password)
@@ -26,7 +26,7 @@ func NewQueue(username string, password string, endpoint string, topicName strin
 	queue.closed = false
 
 	if err != nil {
-		logger.Fatalln(err)
+		return nil, err
 	}
 
 	queue.dialer = &kafka.Dialer{
@@ -46,7 +46,7 @@ func NewQueue(username string, password string, endpoint string, topicName strin
 		Dialer:  queue.dialer,
 	})
 
-	return &queue
+	return &queue, nil
 }
 
 // Close the queue

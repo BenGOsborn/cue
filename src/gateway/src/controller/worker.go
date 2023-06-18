@@ -25,6 +25,8 @@ func Worker(connections *gwUtils.Connections, messages <-chan *utils.QueueMessag
 				return err
 			}
 
+			logger.Println("Worker.sent: sent message to connection")
+
 			return nil
 		}); !ok || err != nil {
 			if !ok {
