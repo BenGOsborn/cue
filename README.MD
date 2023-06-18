@@ -2,7 +2,7 @@
 
 ## Backend
 
-Start
+Start all microservices.
 
 ```bash
 docker-compose up
