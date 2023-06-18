@@ -1,5 +1,7 @@
 package utils
 
 const (
-	AuthSession = "auth-session"
+	AuthCSRFCookie    = "auth-csrf"
+	AuthAccessCookie  = "auth-access"
+	AuthRefreshCookie = "auth-refresh"
 )

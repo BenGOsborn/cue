@@ -8,11 +8,14 @@ import (
 	"github.com/bengosborn/cue/utils"
 )
 
+var expiryTime = 5 * time.Minute
+var length = 32
+
 // Handle the authentication redirect
-func Handle(logger *log.Logger, client *utils.Redis, authenticator *utils.Authenticator, expiryTime time.Duration) func(w http.ResponseWriter, r *http.Request) {
+func HandleAuth(logger *log.Logger, client *utils.Redis, authenticator *utils.Authenticator) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Create a new session
-		key, err := utils.GenerateRandomString(32)
+		key, err := utils.GenerateRandomString(length)
 
 		if err != nil {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -20,17 +23,17 @@ func Handle(logger *log.Logger, client *utils.Redis, authenticator *utils.Authen
 		}
 
 		cookie := http.Cookie{
-			Name:     utils.AuthSession,
+			Name:     utils.AuthCSRFCookie,
 			Value:    key,
 			Path:     "/",
-			MaxAge:   int(expiryTime),
+			MaxAge:   int(expiryTime.Seconds()),
 			HttpOnly: true,
 		}
 
 		http.SetCookie(w, &cookie)
 
 		// Create a redirect URL
-		state, err := utils.GenerateRandomString(32)
+		state, err := utils.GenerateRandomString(length)
 
 		if err != nil {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -39,7 +42,7 @@ func Handle(logger *log.Logger, client *utils.Redis, authenticator *utils.Authen
 
 		redirectUrl := authenticator.GetAuthURL(state)
 
-		client.Set(utils.AuthSession, key, state, expiryTime)
+		client.Set(utils.AuthCSRFCookie, key, state, expiryTime)
 		http.Redirect(w, r, redirectUrl, http.StatusFound)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	authController "github.com/bengosborn/cue/gateway/src/auth_controller"
 	gwController "github.com/bengosborn/cue/gateway/src/gateway_controller"
 	gwUtils "github.com/bengosborn/cue/gateway/src/utils"
 	utils "github.com/bengosborn/cue/utils"
@@ -14,7 +15,6 @@ import (
 )
 
 var addr = ":8080"
-var wsPath = "/ws"
 
 // Process a message
 func Process(logger *log.Logger, queue *utils.Queue) func(string, *gwUtils.Message) error {
@@ -69,7 +69,8 @@ func main() {
 		logger.Fatalln(fmt.Scan("main.error", err))
 	}
 
-	gwController.Attach(mux, wsPath, connections, queue, logger, Process(logger, queue))
+	gwController.Attach(mux, "/ws", connections, queue, logger, Process(logger, queue))
+	authController.Attach(mux, "/auth", "/auth/callback", logger, client, authenticator)
 
 	fmt.Println("server listening on address", addr)
 	logger.Fatalln(server.ListenAndServe())
