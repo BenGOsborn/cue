@@ -21,7 +21,10 @@ func main() {
 	}
 
 	queue := utils.NewQueue(os.Getenv("KAFKA_USERNAME"), os.Getenv("KAFKA_PASSWORD"), os.Getenv("KAFKA_ENDPOINT"), os.Getenv("KAFKA_TOPIC"), logger)
+	defer queue.Close()
+
 	connections := gwUtils.NewConnections()
+	defer connections.Close()
 
 	gwController.Start(addr, connections, workers, queue, logger, gwController.Process(logger, queue))
 }

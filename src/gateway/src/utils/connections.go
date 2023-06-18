@@ -71,6 +71,16 @@ func (connections *Connections) unlockWrite(id string) error {
 	return nil
 }
 
+// Close all connections
+func (connections *Connections) Close() {
+	for id, conn := range connections.connections {
+		connections.lockWrite(id)
+		defer connections.unlockWrite(id)
+
+		conn.Close()
+	}
+}
+
 // Add a new connection
 func (connections *Connections) Add(id string, conn *websocket.Conn) {
 	connections.lockWrite(id)
