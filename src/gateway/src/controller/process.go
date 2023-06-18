@@ -7,6 +7,10 @@ import (
 )
 
 // Process a message
-func Process(message gateway.Message, logger *log.Logger) {
-	log.Println(message.Id + ": " + message.Message)
+func Process(logger *log.Logger) func(*gateway.Message) error {
+	return func(m *gateway.Message) error {
+		logger.Println(m)
+
+		return nil
+	}
 }

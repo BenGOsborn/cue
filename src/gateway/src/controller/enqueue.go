@@ -7,10 +7,9 @@ import (
 )
 
 // Enqueue an element from an event listener
-// **** I need to add support for JSON here across all of the items
-func Enqueue(queue *gwUtils.Queue, messages chan<- gwUtils.Message, logger *log.Logger) {
-	if err := queue.Listen(func(s string) error {
-		logger.Println("here is my new item:", s)
+func Enqueue(queue *gwUtils.Queue, messages chan<- *gwUtils.QueueMessage, logger *log.Logger) {
+	if err := queue.Listen(func(qm *gwUtils.QueueMessage) error {
+		messages <- qm
 
 		return nil
 	}); err != nil {

@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"log"
 
 	"github.com/segmentio/kafka-go"
@@ -17,8 +18,7 @@ type Queue struct {
 }
 
 // Initialize new queue topic
-// **** Perhaps it should be able to create the new topic by itself
-func NewQueue(username string, password string, endpoint string, groupName string, topicName string, logger *log.Logger) *Queue {
+func NewQueue(username string, password string, endpoint string, topicName string, logger *log.Logger) *Queue {
 	queue := Queue{}
 
 	mechanism, err := scram.Mechanism(scram.SHA512, username, password)
@@ -36,7 +36,6 @@ func NewQueue(username string, password string, endpoint string, groupName strin
 
 	queue.reader = kafka.NewReader(kafka.ReaderConfig{
 		Brokers: []string{endpoint},
-		GroupID: groupName,
 		Topic:   topicName,
 		Dialer:  queue.dialer,
 	})
@@ -59,7 +58,7 @@ func (queue *Queue) Close() {
 }
 
 // Listen to queue events
-func (queue *Queue) Listen(fn func(string) error) error {
+func (queue *Queue) Listen(fn func(*QueueMessage) error) error {
 	for {
 		msg, err := queue.reader.ReadMessage(context.TODO())
 
@@ -67,13 +66,26 @@ func (queue *Queue) Listen(fn func(string) error) error {
 			return err
 		}
 
-		if err := fn(string(msg.Value)); err != nil {
+		var queueMessage QueueMessage
+		err = json.Unmarshal([]byte(msg.Value), &queueMessage)
+
+		if err != nil {
+			return err
+		}
+
+		if err := fn(&queueMessage); err != nil {
 			return err
 		}
 	}
 }
 
 // Send message
-func (queue *Queue) Send(msg Message) error {
-	return queue.writer.WriteMessages(context.TODO(), kafka.Message{Value: []byte(msg.Message)})
+func (queue *Queue) Send(msg *QueueMessage) error {
+	data, err := json.Marshal(msg)
+
+	if err != nil {
+		return err
+	}
+
+	return queue.writer.WriteMessages(context.TODO(), kafka.Message{Value: []byte(data)})
 }

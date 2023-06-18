@@ -12,21 +12,28 @@ import (
 var upgrader = websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024}
 
 // Process incoming messages
-func receive(id string, connections *gwUtils.Connections, logger *log.Logger) {
+func receive(id string, connections *gwUtils.Connections, logger *log.Logger, process func(*gwUtils.Message) error) {
 	for {
 		// Read and process messages
 		if ok, err := connections.Apply(id, func(id string, conn *websocket.Conn) error {
-			_, p, err := conn.ReadMessage()
+			var message gwUtils.Message
 
-			if err != nil {
+			if err := conn.ReadJSON(&message); err != nil {
 				return err
 			}
 
-			Process(gwUtils.Message{Id: id, Message: string(p)}, logger)
+			if err := process(&message); err != nil {
+				return err
+			}
 
 			return nil
 		}); !ok || err != nil {
-			logger.Println(err)
+			if !ok {
+				logger.Println("could not apply to given id")
+			} else {
+				logger.Println(err)
+			}
+
 			connections.Remove(id)
 			return
 		}
@@ -34,7 +41,7 @@ func receive(id string, connections *gwUtils.Connections, logger *log.Logger) {
 }
 
 // Handle incoming connection
-func Handle(connections *gwUtils.Connections, logger *log.Logger) func(w http.ResponseWriter, r *http.Request) {
+func Handle(connections *gwUtils.Connections, logger *log.Logger, process func(*gwUtils.Message) error) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 
@@ -50,6 +57,6 @@ func Handle(connections *gwUtils.Connections, logger *log.Logger) func(w http.Re
 		connections.Add(id, conn)
 
 		// Start receiving messages
-		receive(id, connections, logger)
+		receive(id, connections, logger, process)
 	}
 }

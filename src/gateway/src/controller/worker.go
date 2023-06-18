@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"encoding/json"
 	"log"
 
 	gwUtils "github.com/bengosborn/cue/gateway/src/utils"
@@ -8,16 +9,27 @@ import (
 )
 
 // Send a queued message
-func Worker(connections *gwUtils.Connections, messages <-chan gwUtils.Message, logger *log.Logger) {
+func Worker(connections *gwUtils.Connections, messages <-chan *gwUtils.QueueMessage, logger *log.Logger) {
 	for msg := range messages {
 		// Send the message
-		connections.Apply(msg.Id, func(id string, conn *websocket.Conn) error {
-			if err := conn.WriteMessage(1, []byte(id+": "+msg.Message)); err != nil {
-				logger.Println(err)
+		if ok, err := connections.Apply(msg.Id, func(id string, conn *websocket.Conn) error {
+			data, err := json.Marshal(msg)
+
+			if err != nil {
+				return err
+			}
+
+			if err := conn.WriteMessage(1, data); err != nil {
+				return err
 			}
 
 			return nil
-		})
+		}); !ok || err != nil {
+			if !ok {
+				logger.Println("could not apply to given id")
+			} else {
+				logger.Println(err)
+			}
+		}
 	}
-
 }
