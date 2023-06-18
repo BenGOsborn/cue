@@ -13,6 +13,20 @@ import (
 var addr = ":8080"
 var workers = 10
 
+// Process a message
+func Process(logger *log.Logger, queue *utils.Queue) func(string, *gwUtils.Message) error {
+	return func(id string, msg *gwUtils.Message) error {
+		// Authenticate
+		// msg.Auth
+
+		// Add to queue
+		queueMsg := utils.QueueMessage{Receiver: id, Type: msg.Type, Body: msg.Body}
+		queue.Send(&queueMsg)
+
+		return nil
+	}
+}
+
 func main() {
 	logger := log.New(os.Stdout, "[Gateway] ", log.Ldate|log.Ltime)
 
@@ -28,5 +42,5 @@ func main() {
 	connections := gwUtils.NewConnections()
 	defer connections.Close()
 
-	gwController.Start(addr, connections, workers, queue, logger, gwController.Process(logger, queue))
+	gwController.Start(addr, connections, workers, queue, logger, Process(logger, queue))
 }
