@@ -76,7 +76,7 @@ func main() {
 	}
 
 	gwController.Attach(mux, "/ws", connections, []*utils.Queue{queue}, logger, Process(logger, queue, authenticator))
-	authController.Attach(mux, "/auth", "/auth/callback", logger, redis, authenticator)
+	authController.Attach(mux, "/auth", logger, redis, authenticator)
 
 	fmt.Println("server listening on address", addr)
 	logger.Fatalln(server.ListenAndServe())

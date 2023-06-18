@@ -54,7 +54,7 @@ func HandleCallback(redis *utils.Redis, authenticator *utils.Authenticator, logg
 
 		http.SetCookie(w, &authCookie)
 
-		logger.Println("callback.success: set authentication cookie")
+		logger.Println("handlecallback.success: set authentication cookie")
 
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
