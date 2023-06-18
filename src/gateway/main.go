@@ -17,12 +17,12 @@ import (
 var addr = ":8080"
 
 // Process a message
-func Process(logger *log.Logger, queue *utils.Queue) func(string, *gwUtils.Message) error {
+func Process(logger *log.Logger, queue *utils.Queue, authenticator *utils.Authenticator, client *utils.Redis) func(string, *gwUtils.Message) error {
 	return func(id string, msg *gwUtils.Message) error {
 		logger.Println("Process.received: received raw message")
 
 		// Authenticate
-		// msg.Auth
+		// msg.Auth -> authenticate this once -> cache it -> pull from cache
 
 		// Add to queue
 		queueMsg := utils.QueueMessage{Receiver: id, Type: msg.Type, Body: msg.Body}
@@ -69,7 +69,7 @@ func main() {
 		logger.Fatalln(fmt.Scan("main.error", err))
 	}
 
-	gwController.Attach(mux, "/ws", connections, queue, logger, Process(logger, queue))
+	gwController.Attach(mux, "/ws", connections, queue, logger, Process(logger, queue, authenticator, client))
 	authController.Attach(mux, "/auth", "/auth/callback", logger, client, authenticator)
 
 	fmt.Println("server listening on address", addr)

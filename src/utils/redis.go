@@ -16,6 +16,7 @@ func formatKey(prefix string, key string) string {
 	return prefix + ":" + key
 }
 
+// Create a new redis instance
 func NewRedis(ctx context.Context, redisUrl string) (*Redis, error) {
 	opt, err := redis.ParseURL(redisUrl)
 	if err != nil {
