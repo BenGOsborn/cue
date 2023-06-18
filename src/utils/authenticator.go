@@ -41,7 +41,7 @@ func NewAuthenticator(ctx context.Context, auth0Domain string, auth0CallbackUrl 
 }
 
 // VerifyIDToken verifies that an *oauth2.Token is a valid *oidc.IDToken.
-func (authenticator *Authenticator) VerifyIDToken(token *oauth2.Token) (*oidc.IDToken, error) {
+func (a *Authenticator) VerifyIDToken(token *oauth2.Token) (*oidc.IDToken, error) {
 	rawIDToken, ok := token.Extra("id_token").(string)
 
 	if !ok {
@@ -49,20 +49,20 @@ func (authenticator *Authenticator) VerifyIDToken(token *oauth2.Token) (*oidc.ID
 	}
 
 	oidcConfig := &oidc.Config{
-		ClientID: authenticator.config.ClientID,
+		ClientID: a.config.ClientID,
 	}
 
-	return authenticator.provider.Verifier(oidcConfig).Verify(authenticator.ctx, rawIDToken)
+	return a.provider.Verifier(oidcConfig).Verify(a.ctx, rawIDToken)
 }
 
 // Create a login URL with a new state
-func (authenticator *Authenticator) GetAuthURL(state string) string {
-	return authenticator.config.AuthCodeURL(state)
+func (a *Authenticator) GetAuthURL(state string) string {
+	return a.config.AuthCodeURL(state)
 }
 
 // Exchange an authorization code for a token
-func (authenticator *Authenticator) ExchangeCodeForToken(code string) (*oauth2.Token, error) {
-	token, err := authenticator.config.Exchange(authenticator.ctx, code)
+func (a *Authenticator) ExchangeCodeForToken(code string) (*oauth2.Token, error) {
+	token, err := a.config.Exchange(a.ctx, code)
 	if err != nil {
 		return nil, err
 	}

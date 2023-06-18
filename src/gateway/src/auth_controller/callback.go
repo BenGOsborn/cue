@@ -36,11 +36,6 @@ func HandleCallback(client *utils.Redis, authenticator *utils.Authenticator, log
 		// Exchange the authorization code for a token
 		code := r.URL.Query().Get("code")
 
-		if code == "" {
-			http.Error(w, "Authorization code not found", http.StatusBadRequest)
-			return
-		}
-
 		token, err := authenticator.ExchangeCodeForToken(code)
 
 		if err != nil {
@@ -58,16 +53,6 @@ func HandleCallback(client *utils.Redis, authenticator *utils.Authenticator, log
 		}
 
 		http.SetCookie(w, &authCookie)
-
-		// Set the refresh cookie
-		refreshCookie := http.Cookie{
-			Name:     utils.AuthRefreshCookie,
-			Value:    "Bearer " + token.RefreshToken,
-			Path:     "/",
-			HttpOnly: true,
-		}
-
-		http.SetCookie(w, &refreshCookie)
 
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))

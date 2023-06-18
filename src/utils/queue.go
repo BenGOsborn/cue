@@ -50,15 +50,15 @@ func NewQueue(ctx context.Context, username string, password string, endpoint st
 }
 
 // Close the queue
-func (queue *Queue) Close() {
-	queue.reader.Close()
-	queue.writer.Close()
+func (q *Queue) Close() {
+	q.reader.Close()
+	q.writer.Close()
 }
 
 // Listen to queue events
-func (queue *Queue) Listen(fn func(*QueueMessage)) error {
+func (q *Queue) Listen(fn func(*QueueMessage)) error {
 	for {
-		msg, err := queue.reader.ReadMessage(queue.ctx)
+		msg, err := q.reader.ReadMessage(q.ctx)
 
 		if err != nil {
 			return err
@@ -75,12 +75,12 @@ func (queue *Queue) Listen(fn func(*QueueMessage)) error {
 }
 
 // Send message
-func (queue *Queue) Send(msg *QueueMessage) error {
+func (q *Queue) Send(msg *QueueMessage) error {
 	data, err := json.Marshal(msg)
 
 	if err != nil {
 		return err
 	}
 
-	return queue.writer.WriteMessages(queue.ctx, kafka.Message{Value: []byte(data)})
+	return q.writer.WriteMessages(q.ctx, kafka.Message{Value: []byte(data)})
 }

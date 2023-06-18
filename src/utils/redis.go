@@ -32,16 +32,16 @@ func (redis *Redis) Close() {
 }
 
 // Add a new key
-func (redis *Redis) Set(prefix string, key string, value string, expiry time.Duration) {
-	redis.client.Set(redis.ctx, formatKey(prefix, key), value, expiry)
+func (r *Redis) Set(prefix string, key string, value string, expiry time.Duration) error {
+	return r.client.Set(r.ctx, formatKey(prefix, key), value, expiry).Err()
 }
 
 // Retrieve a key
-func (redis *Redis) Get(prefix string, key string) string {
-	return redis.client.Get(redis.ctx, formatKey(prefix, key)).Val()
+func (r *Redis) Get(prefix string, key string) string {
+	return r.client.Get(r.ctx, formatKey(prefix, key)).Val()
 }
 
 // Remove a key
-func (redis *Redis) Remove(prefix string, key string) {
-	redis.client.Del(redis.ctx, formatKey(prefix, key))
+func (r *Redis) Remove(prefix string, key string) {
+	r.client.Del(r.ctx, formatKey(prefix, key))
 }

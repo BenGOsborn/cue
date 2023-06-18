@@ -42,7 +42,11 @@ func HandleAuth(logger *log.Logger, client *utils.Redis, authenticator *utils.Au
 
 		redirectUrl := authenticator.GetAuthURL(state)
 
-		client.Set(utils.AuthCSRFCookie, key, state, expiryTime)
+		if err := client.Set(utils.AuthCSRFCookie, key, state, expiryTime); err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
 		http.Redirect(w, r, redirectUrl, http.StatusFound)
 	}
 }
