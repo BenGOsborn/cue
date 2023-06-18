@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 
 	gwController "github.com/bengosborn/cue/gateway/src/controller"
@@ -34,6 +35,11 @@ func Process(logger *log.Logger, queue *utils.Queue) func(string, *gwUtils.Messa
 
 func main() {
 	logger := log.New(os.Stdout, "[Gateway] ", log.Ldate|log.Ltime)
+	mux := http.NewServeMux()
+	server := &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
 
 	if os.Getenv("ENV") != "production" {
 		if err := godotenv.Load("../.env"); err != nil {
@@ -50,5 +56,8 @@ func main() {
 	connections := gwUtils.NewConnections()
 	defer connections.Close()
 
-	gwController.Start(addr, connections, workers, queue, logger, Process(logger, queue))
+	gwController.Attach(mux, connections, workers, queue, logger, Process(logger, queue))
+
+	fmt.Println("server listening on address", addr)
+	logger.Fatalln(server.ListenAndServe())
 }

@@ -1,4 +1,4 @@
-package gateway
+package utils
 
 type QueueMessage struct {
 	Receiver string `json:"id"`

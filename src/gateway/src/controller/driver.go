@@ -9,11 +9,10 @@ import (
 )
 
 // Start the server
-func Start(addr string, connections *gwUtils.Connections, workers int, queue *utils.Queue, logger *log.Logger, process func(string, *gwUtils.Message) error) {
+func Attach(server *http.ServeMux, connections *gwUtils.Connections, workers int, queue *utils.Queue, logger *log.Logger, process func(string, *gwUtils.Message) error) {
 	messages := make(chan *utils.QueueMessage)
 
-	http.HandleFunc("/ws", HandleWs(connections, logger, process))
-	// http.HandleFunc("/auth", HandleWs(connections, logger, process))
+	server.HandleFunc("/ws", HandleWs(connections, logger, process))
 
 	// Launch worker threads
 	for i := 0; i < workers; i++ {
@@ -22,7 +21,4 @@ func Start(addr string, connections *gwUtils.Connections, workers int, queue *ut
 
 	// Launch the event listener
 	go Enqueue(queue, messages, logger)
-
-	logger.Println("listening on address", addr)
-	logger.Fatalln(http.ListenAndServe(addr, nil))
 }
