@@ -1,4 +1,4 @@
-package gateway
+package gateway_controller
 
 import (
 	"fmt"
@@ -52,7 +52,7 @@ func HandleWs(connections *gwUtils.Connections, logger *log.Logger, process func
 		conn, err := upgrader.Upgrade(w, r, nil)
 
 		if err != nil {
-			logger.Println(fmt.Sprint("Handle.error: ", err))
+			logger.Println(fmt.Sprint("handle.error: ", err))
 			return
 		}
 
@@ -60,7 +60,7 @@ func HandleWs(connections *gwUtils.Connections, logger *log.Logger, process func
 		id := uuid.NewString()
 		connections.Add(id, conn)
 
-		logger.Println("HandleWs.connection: added new connection")
+		logger.Println("handlews.connection: added new connection")
 
 		// Start receiving messages
 		receive(id, connections, logger, process)

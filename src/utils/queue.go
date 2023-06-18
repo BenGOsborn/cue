@@ -14,16 +14,16 @@ type Queue struct {
 	dialer *kafka.Dialer
 	reader *kafka.Reader
 	writer *kafka.Writer
-	closed bool
+	ctx    context.Context
 }
 
 // Initialize new queue topic
-func NewQueue(username string, password string, endpoint string, topicName string, logger *log.Logger) (*Queue, error) {
-	queue := Queue{}
+func NewQueue(ctx context.Context, username string, password string, endpoint string, topicName string, logger *log.Logger) (*Queue, error) {
+	queue := Queue{
+		ctx: ctx,
+	}
 
 	mechanism, err := scram.Mechanism(scram.SHA512, username, password)
-
-	queue.closed = false
 
 	if err != nil {
 		return nil, err
@@ -51,31 +51,26 @@ func NewQueue(username string, password string, endpoint string, topicName strin
 
 // Close the queue
 func (queue *Queue) Close() {
-	queue.closed = true
-
 	queue.reader.Close()
 	queue.writer.Close()
 }
 
 // Listen to queue events
-func (queue *Queue) Listen(fn func(*QueueMessage) error) error {
+func (queue *Queue) Listen(fn func(*QueueMessage)) error {
 	for {
-		msg, err := queue.reader.ReadMessage(context.TODO())
+		msg, err := queue.reader.ReadMessage(queue.ctx)
 
 		if err != nil {
 			return err
 		}
 
 		var queueMessage QueueMessage
-		err = json.Unmarshal([]byte(msg.Value), &queueMessage)
 
-		if err != nil {
-			return err
+		if err = json.Unmarshal([]byte(msg.Value), &queueMessage); err != nil {
+			continue
 		}
 
-		if err := fn(&queueMessage); err != nil {
-			return err
-		}
+		go fn(&queueMessage)
 	}
 }
 
@@ -87,5 +82,5 @@ func (queue *Queue) Send(msg *QueueMessage) error {
 		return err
 	}
 
-	return queue.writer.WriteMessages(context.TODO(), kafka.Message{Value: []byte(data)})
+	return queue.writer.WriteMessages(queue.ctx, kafka.Message{Value: []byte(data)})
 }
