@@ -1,0 +1,12 @@
+version: "3"
+services:
+    gateway:
+        build:
+            dockerfile: ../Docker/gateway.Dockerfile
+            context: ./src
+        ports:
+            - 8080:8080
+        env_file:
+            - .env
+        environment:
+            - ENV=production

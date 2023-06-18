@@ -17,7 +17,7 @@ func main() {
 	logger := log.New(os.Stdout, "[Gateway] ", log.Ldate|log.Ltime)
 
 	if os.Getenv("ENV") != "production" {
-		if err := godotenv.Load(); err != nil {
+		if err := godotenv.Load("../.env"); err != nil {
 			logger.Fatalln(err)
 		}
 	}
