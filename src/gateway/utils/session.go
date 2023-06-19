@@ -1,14 +1,15 @@
-package utils
+package gateway
 
 import (
 	"encoding/json"
 	"time"
 
 	"github.com/bengosborn/cue/helpers"
+	"github.com/bengosborn/cue/utils"
 )
 
 type Session struct {
-	redis *Redis
+	redis *utils.Redis
 }
 
 type SessionData struct {
@@ -21,7 +22,7 @@ const (
 	SessionExpiry = time.Hour
 )
 
-func NewSession(redis *Redis) *Session {
+func NewSession(redis *utils.Redis) *Session {
 	return &Session{redis: redis}
 }
 
@@ -42,12 +43,12 @@ func (s *Session) Set(id string, value *SessionData) error {
 		return err
 	}
 
-	return s.redis.Set(FormatKey(SessionCookie, id), string(data), SessionExpiry)
+	return s.redis.Set(utils.FormatKey(SessionCookie, id), string(data), SessionExpiry)
 }
 
 // Retrieve a session
 func (s *Session) Get(id string) (*SessionData, error) {
-	raw := s.redis.Get(FormatKey(SessionCookie, id))
+	raw := s.redis.Get(utils.FormatKey(SessionCookie, id))
 
 	data := SessionData{}
 	if err := json.Unmarshal([]byte(raw), &data); err != nil {
@@ -59,5 +60,5 @@ func (s *Session) Get(id string) (*SessionData, error) {
 
 // Delete a session
 func (s *Session) Delete(id string) error {
-	return s.redis.Remove(FormatKey(SessionCookie, id))
+	return s.redis.Remove(utils.FormatKey(SessionCookie, id))
 }

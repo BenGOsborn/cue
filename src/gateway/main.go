@@ -17,7 +17,7 @@ import (
 var addr = "0.0.0.0:8080"
 
 // Process a message
-func Process(logger *log.Logger, queue *utils.Queue, session *utils.Session, authenticator *gwUtils.Authenticator) func(string, *gwUtils.Message) error {
+func Process(logger *log.Logger, queue *utils.Queue, session *gwUtils.Session, authenticator *gwUtils.Authenticator) func(string, *gwUtils.Message) error {
 	return func(receiver string, msg *gwUtils.Message) error {
 		logger.Println("process.received: received raw message")
 
@@ -71,7 +71,7 @@ func main() {
 	}
 	defer redis.Close()
 
-	session := utils.NewSession(redis)
+	session := gwUtils.NewSession(redis)
 
 	queue, err := utils.NewQueue(ctx, os.Getenv("KAFKA_USERNAME"), os.Getenv("KAFKA_PASSWORD"), os.Getenv("KAFKA_ENDPOINT"), os.Getenv("KAFKA_TOPIC"), logger)
 	if err != nil {

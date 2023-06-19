@@ -5,14 +5,13 @@ import (
 	"net/http"
 
 	gwUtils "github.com/bengosborn/cue/gateway/utils"
-	"github.com/bengosborn/cue/utils"
 )
 
 // Handle the authentication callback
-func HandleCallback(session *utils.Session, authenticator *gwUtils.Authenticator, logger *log.Logger) func(w http.ResponseWriter, r *http.Request) {
+func HandleCallback(session *gwUtils.Session, authenticator *gwUtils.Authenticator, logger *log.Logger) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Get the session
-		sessionCookie, err := r.Cookie(utils.SessionCookie)
+		sessionCookie, err := r.Cookie(gwUtils.SessionCookie)
 		if err != nil {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
@@ -41,7 +40,7 @@ func HandleCallback(session *utils.Session, authenticator *gwUtils.Authenticator
 			return
 		}
 
-		session.Set(sessionCookie.Value, &utils.SessionData{Token: rawIdToken})
+		session.Set(sessionCookie.Value, &gwUtils.SessionData{Token: rawIdToken})
 
 		logger.Println("handlecallback.success: authenticated new session")
 

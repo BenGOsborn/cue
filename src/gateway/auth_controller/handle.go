@@ -6,11 +6,10 @@ import (
 
 	gwUtils "github.com/bengosborn/cue/gateway/utils"
 	"github.com/bengosborn/cue/helpers"
-	"github.com/bengosborn/cue/utils"
 )
 
 // Handle the authentication redirect
-func HandleAuth(logger *log.Logger, session *utils.Session, authenticator *gwUtils.Authenticator) func(w http.ResponseWriter, r *http.Request) {
+func HandleAuth(logger *log.Logger, session *gwUtils.Session, authenticator *gwUtils.Authenticator) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Create a new session
 		sessionId, err := session.Create()
@@ -20,10 +19,10 @@ func HandleAuth(logger *log.Logger, session *utils.Session, authenticator *gwUti
 		}
 
 		cookie := http.Cookie{
-			Name:     utils.SessionCookie,
+			Name:     gwUtils.SessionCookie,
 			Value:    sessionId,
 			Path:     "/",
-			MaxAge:   int(utils.SessionExpiry.Seconds()),
+			MaxAge:   int(gwUtils.SessionExpiry.Seconds()),
 			HttpOnly: true,
 		}
 
@@ -38,7 +37,7 @@ func HandleAuth(logger *log.Logger, session *utils.Session, authenticator *gwUti
 
 		redirectUrl := authenticator.GetAuthURL(state)
 
-		if err := session.Set(sessionId, &utils.SessionData{CSRFToken: state}); err != nil {
+		if err := session.Set(sessionId, &gwUtils.SessionData{CSRFToken: state}); err != nil {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
