@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"os"
 
-	authController "github.com/bengosborn/cue/gateway/src/auth_controller"
-	gwController "github.com/bengosborn/cue/gateway/src/gateway_controller"
-	gwUtils "github.com/bengosborn/cue/gateway/src/utils"
+	authController "github.com/bengosborn/cue/gateway/auth_controller"
+	gwController "github.com/bengosborn/cue/gateway/gateway_controller"
+	gwUtils "github.com/bengosborn/cue/gateway/utils"
 	utils "github.com/bengosborn/cue/utils"
 	"github.com/joho/godotenv"
 )
@@ -17,7 +17,7 @@ import (
 var addr = "0.0.0.0:8080"
 
 // Process a message
-func Process(logger *log.Logger, queue *utils.Queue, session *utils.Session, authenticator *utils.Authenticator) func(string, *gwUtils.Message) error {
+func Process(logger *log.Logger, queue *utils.Queue, session *utils.Session, authenticator *gwUtils.Authenticator) func(string, *gwUtils.Message) error {
 	return func(receiver string, msg *gwUtils.Message) error {
 		logger.Println("process.received: received raw message")
 
@@ -79,7 +79,7 @@ func main() {
 	}
 	defer queue.Close()
 
-	authenticator, err := utils.NewAuthenticator(ctx, os.Getenv("AUTH0_DOMAIN"), os.Getenv("AUTH0_CALLBACK_URL"), os.Getenv("AUTH0_CLIENT_ID"), os.Getenv("AUTH0_CLIENT_SECRET"))
+	authenticator, err := gwUtils.NewAuthenticator(ctx, os.Getenv("AUTH0_DOMAIN"), os.Getenv("AUTH0_CALLBACK_URL"), os.Getenv("AUTH0_CLIENT_ID"), os.Getenv("AUTH0_CLIENT_SECRET"))
 	if err != nil {
 		logger.Fatalln(fmt.Scan("main.error", err))
 	}

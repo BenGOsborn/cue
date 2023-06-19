@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	gwUtils "github.com/bengosborn/cue/gateway/src/utils"
+	gwUtils "github.com/bengosborn/cue/gateway/utils"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )

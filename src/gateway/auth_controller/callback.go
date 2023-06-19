@@ -4,11 +4,12 @@ import (
 	"log"
 	"net/http"
 
+	gwUtils "github.com/bengosborn/cue/gateway/utils"
 	"github.com/bengosborn/cue/utils"
 )
 
 // Handle the authentication callback
-func HandleCallback(session *utils.Session, authenticator *utils.Authenticator, logger *log.Logger) func(w http.ResponseWriter, r *http.Request) {
+func HandleCallback(session *utils.Session, authenticator *gwUtils.Authenticator, logger *log.Logger) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Get the session
 		sessionCookie, err := r.Cookie(utils.SessionCookie)

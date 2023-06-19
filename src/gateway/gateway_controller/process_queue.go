@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	gwUtils "github.com/bengosborn/cue/gateway/src/utils"
+	gwUtils "github.com/bengosborn/cue/gateway/utils"
 	utils "github.com/bengosborn/cue/utils"
 	"github.com/gorilla/websocket"
 )

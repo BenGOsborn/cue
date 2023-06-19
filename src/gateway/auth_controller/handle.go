@@ -4,12 +4,13 @@ import (
 	"log"
 	"net/http"
 
+	gwUtils "github.com/bengosborn/cue/gateway/utils"
 	"github.com/bengosborn/cue/helpers"
 	"github.com/bengosborn/cue/utils"
 )
 
 // Handle the authentication redirect
-func HandleAuth(logger *log.Logger, session *utils.Session, authenticator *utils.Authenticator) func(w http.ResponseWriter, r *http.Request) {
+func HandleAuth(logger *log.Logger, session *utils.Session, authenticator *gwUtils.Authenticator) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Create a new session
 		sessionId, err := session.Create()
