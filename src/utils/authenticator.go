@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
@@ -46,7 +47,9 @@ func (a *Authenticator) GetAuthURL(state string) string {
 }
 
 // Verify an id token is valid
-func (a *Authenticator) VerifyIDToken(token string) (*oidc.IDToken, error) {
+func (a *Authenticator) VerifyToken(token string) (*oidc.IDToken, error) {
+	token = strings.TrimPrefix(token, "Bearer ")
+
 	oidcConfig := &oidc.Config{
 		ClientID: a.config.ClientID,
 	}

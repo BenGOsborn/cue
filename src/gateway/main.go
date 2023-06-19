@@ -22,7 +22,7 @@ func Process(logger *log.Logger, queue *utils.Queue, authenticator *utils.Authen
 		logger.Println("process.received: received raw message")
 
 		// Authenticate
-		user, err := authenticator.VerifyIDToken(msg.Auth)
+		user, err := authenticator.VerifyToken(msg.Auth)
 
 		if err != nil {
 			logger.Println(fmt.Sprint("process.error: ", err))
@@ -78,6 +78,6 @@ func main() {
 	gwController.Attach(mux, "/ws", connections, queue, logger, Process(logger, queue, authenticator))
 	authController.Attach(mux, "/auth", logger, redis, authenticator)
 
-	fmt.Println("server listening on address", addr)
+	logger.Println("server listening on address", addr)
 	logger.Fatalln(server.ListenAndServe())
 }
