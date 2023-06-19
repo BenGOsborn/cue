@@ -2,7 +2,6 @@ package utils
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -11,11 +10,6 @@ import (
 type Redis struct {
 	client *redis.Client
 	ctx    context.Context
-}
-
-// Format a redis key
-func FormatKey(parts ...string) string {
-	return strings.Join(parts, ":")
 }
 
 // Create a new redis instance

@@ -43,12 +43,12 @@ func (s *Session) Set(id string, value *SessionData) error {
 		return err
 	}
 
-	return s.redis.Set(utils.FormatKey(SessionCookie, id), string(data), SessionExpiry)
+	return s.redis.Set(helpers.FormatKey(SessionCookie, id), string(data), SessionExpiry)
 }
 
 // Retrieve a session
 func (s *Session) Get(id string) (*SessionData, error) {
-	raw := s.redis.Get(utils.FormatKey(SessionCookie, id))
+	raw := s.redis.Get(helpers.FormatKey(SessionCookie, id))
 
 	data := SessionData{}
 	if err := json.Unmarshal([]byte(raw), &data); err != nil {
@@ -60,5 +60,5 @@ func (s *Session) Get(id string) (*SessionData, error) {
 
 // Delete a session
 func (s *Session) Delete(id string) error {
-	return s.redis.Remove(utils.FormatKey(SessionCookie, id))
+	return s.redis.Remove(helpers.FormatKey(SessionCookie, id))
 }
