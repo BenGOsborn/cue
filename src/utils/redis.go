@@ -45,6 +45,6 @@ func (r *Redis) Get(key string) string {
 }
 
 // Remove a key
-func (r *Redis) Remove(key string) {
-	r.client.Del(r.ctx, key)
+func (r *Redis) Remove(key string) error {
+	return r.client.Del(r.ctx, key).Err()
 }

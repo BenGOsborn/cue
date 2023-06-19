@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -20,7 +21,7 @@ type Authenticator struct {
 func NewAuthenticator(ctx context.Context, auth0Domain string, auth0CallbackUrl string, auth0ClientId string, auth0ClientSecret string) (*Authenticator, error) {
 	provider, err := oidc.NewProvider(
 		ctx,
-		"https://"+auth0Domain+"/",
+		fmt.Sprint("https://", auth0Domain, "/"),
 	)
 	if err != nil {
 		return nil, err

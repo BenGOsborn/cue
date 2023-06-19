@@ -4,7 +4,6 @@ import (
 	"log"
 	"net/http"
 
-	gwUtils "github.com/bengosborn/cue/gateway/src/utils"
 	"github.com/bengosborn/cue/helpers"
 	"github.com/bengosborn/cue/utils"
 )
@@ -38,7 +37,7 @@ func HandleAuth(logger *log.Logger, session *utils.Session, authenticator *utils
 
 		redirectUrl := authenticator.GetAuthURL(state)
 
-		if err := session.Set(sessionId, gwUtils.SessionStateKey, state); err != nil {
+		if err := session.Set(sessionId, &utils.SessionData{CSRFToken: state}); err != nil {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}

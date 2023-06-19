@@ -1,118 +1,62 @@
 package gateway
 
 import (
-	"errors"
-	"sync"
-
+	"github.com/bengosborn/cue/utils"
 	"github.com/gorilla/websocket"
 )
 
 type Connections struct {
 	connections map[string]*websocket.Conn
-	mutex       map[string]*sync.RWMutex
+	lock        *utils.ResourceLock
 }
 
 // Create a new connections struct
 func NewConnections() *Connections {
-	return &Connections{connections: make(map[string]*websocket.Conn), mutex: make(map[string]*sync.RWMutex)}
-}
-
-// Lock the mutex for reading
-func (connections *Connections) lockRead(id string) error {
-	lock, ok := connections.mutex[id]
-
-	if !ok {
-		lock = &sync.RWMutex{}
-		connections.mutex[id] = lock
-	}
-
-	lock.RLock()
-
-	return nil
-}
-
-// Unlock the mutex for reading
-func (connections *Connections) unlockRead(id string) error {
-	lock, ok := connections.mutex[id]
-
-	if !ok {
-		return errors.New("no lock with this id exists")
-	}
-
-	lock.RUnlock()
-
-	return nil
-}
-
-// Lock the mutex for writing
-func (connections *Connections) lockWrite(id string) error {
-	lock, ok := connections.mutex[id]
-
-	if !ok {
-		lock = &sync.RWMutex{}
-		connections.mutex[id] = lock
-	}
-
-	lock.Lock()
-
-	return nil
-}
-
-// Unlock the mutex for writing
-func (connections *Connections) unlockWrite(id string) error {
-	lock, ok := connections.mutex[id]
-
-	if !ok {
-		return errors.New("no lock with this id exists")
-	}
-
-	lock.Unlock()
-
-	return nil
+	return &Connections{connections: make(map[string]*websocket.Conn), lock: utils.NewResourceLock()}
 }
 
 // Close all connections
-func (connections *Connections) Close() {
-	for id, conn := range connections.connections {
-		connections.lockWrite(id)
-		defer connections.unlockWrite(id)
+func (c *Connections) Close() {
+	for id, conn := range c.connections {
+		c.lock.LockWrite(id)
+		defer c.lock.UnlockWrite(id)
 
 		conn.Close()
 	}
 }
 
 // Add a new connection
-func (connections *Connections) Add(id string, conn *websocket.Conn) {
-	connections.lockWrite(id)
-	defer connections.unlockWrite(id)
+func (c *Connections) Add(id string, conn *websocket.Conn) {
+	c.lock.LockWrite(id)
+	defer c.lock.UnlockWrite(id)
 
-	connections.connections[id] = conn
+	c.connections[id] = conn
 }
 
 // Remove a connection
-func (connections *Connections) Remove(id string) {
-	connections.lockWrite(id)
-	defer connections.unlockWrite(id)
+func (c *Connections) Remove(id string) {
+	c.lock.LockWrite(id)
+	defer c.lock.UnlockWrite(id)
 
-	connections.connections[id].Close()
-	delete(connections.connections, id)
+	c.connections[id].Close()
+	delete(c.connections, id)
 }
 
 // Check if a connection exists
-func (connections *Connections) Exists(id string) bool {
-	connections.lockRead(id)
-	defer connections.unlockRead(id)
+func (c *Connections) Exists(id string) bool {
+	c.lock.LockRead(id)
+	defer c.lock.UnlockRead(id)
 
-	_, ok := connections.connections[id]
+	_, ok := c.connections[id]
 
 	return ok
 }
 
 // Apply a function to all connections
-func (connections *Connections) ForEach(fn func(string, *websocket.Conn) error) error {
-	for id, conn := range connections.connections {
-		connections.lockRead(id)
-		defer connections.unlockRead(id)
+func (c *Connections) ForEach(fn func(string, *websocket.Conn) error) error {
+	for id, conn := range c.connections {
+		c.lock.LockRead(id)
+		defer c.lock.UnlockRead(id)
 
 		if err := fn(id, conn); err != nil {
 			return err
@@ -123,17 +67,19 @@ func (connections *Connections) ForEach(fn func(string, *websocket.Conn) error) 
 }
 
 // Apply a function to a particular connection
-func (connections *Connections) Apply(id string, fn func(string, *websocket.Conn) error) (bool, error) {
-	connections.lockRead(id)
-	defer connections.unlockRead(id)
+func (c *Connections) Apply(id string, fn func(string, *websocket.Conn) error) (bool, error) {
+	c.lock.LockRead(id)
+	defer c.lock.UnlockRead(id)
 
-	conn, ok := connections.connections[id]
+	conn, ok := c.connections[id]
 
 	if !ok {
 		return false, nil
 	}
 
-	err := fn(id, conn)
+	if err := fn(id, conn); err != nil {
+		return false, err
+	}
 
-	return true, err
+	return true, nil
 }

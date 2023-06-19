@@ -24,7 +24,6 @@ func NewQueue(ctx context.Context, username string, password string, endpoint st
 	}
 
 	mechanism, err := scram.Mechanism(scram.SHA512, username, password)
-
 	if err != nil {
 		return nil, err
 	}
@@ -59,14 +58,13 @@ func (q *Queue) Close() {
 func (q *Queue) Listen(fn func(*QueueMessage)) error {
 	for {
 		msg, err := q.reader.ReadMessage(q.ctx)
-
 		if err != nil {
 			return err
 		}
 
 		var queueMessage QueueMessage
 
-		if err = json.Unmarshal([]byte(msg.Value), &queueMessage); err != nil {
+		if err := json.Unmarshal([]byte(msg.Value), &queueMessage); err != nil {
 			continue
 		}
 
@@ -77,7 +75,6 @@ func (q *Queue) Listen(fn func(*QueueMessage)) error {
 // Send message
 func (q *Queue) Send(msg *QueueMessage) error {
 	data, err := json.Marshal(msg)
-
 	if err != nil {
 		return err
 	}

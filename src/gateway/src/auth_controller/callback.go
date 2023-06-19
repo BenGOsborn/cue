@@ -4,24 +4,29 @@ import (
 	"log"
 	"net/http"
 
-	gwUtils "github.com/bengosborn/cue/gateway/src/utils"
 	"github.com/bengosborn/cue/utils"
 )
 
 // Handle the authentication callback
 func HandleCallback(session *utils.Session, authenticator *utils.Authenticator, logger *log.Logger) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Verify the CSRF token
+		// Get the session
 		sessionCookie, err := r.Cookie(utils.SessionCookie)
-
 		if err != nil {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
 
+		sessionData, err := session.Get(sessionCookie.Value)
+		if err != nil {
+			http.Error(w, "Invalid session cookie", http.StatusBadRequest)
+			return
+		}
+
+		// Verify the CSRF token
 		state := r.URL.Query().Get("state")
 
-		if state == "" || session.Get(sessionCookie.Value, gwUtils.SessionStateKey) != state {
+		if state == "" || sessionData.CSRFToken != state {
 			http.Error(w, "Invalid stored state", http.StatusInternalServerError)
 			return
 		}
@@ -35,7 +40,7 @@ func HandleCallback(session *utils.Session, authenticator *utils.Authenticator, 
 			return
 		}
 
-		session.Set(sessionCookie.Value, gwUtils.SessionAuthKey, rawIdToken)
+		session.Set(sessionCookie.Value, &utils.SessionData{Token: rawIdToken})
 
 		logger.Println("handlecallback.success: authenticated new session")
 

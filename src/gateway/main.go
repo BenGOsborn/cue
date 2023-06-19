@@ -14,7 +14,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-var addr = ":8080"
+var addr = "0.0.0.0:8080"
 
 // Process a message
 func Process(logger *log.Logger, queue *utils.Queue, session *utils.Session, authenticator *utils.Authenticator) func(string, *gwUtils.Message) error {
@@ -22,9 +22,14 @@ func Process(logger *log.Logger, queue *utils.Queue, session *utils.Session, aut
 		logger.Println("process.received: received raw message")
 
 		// Authenticate
-		token := session.Get(msg.SessionId, gwUtils.SessionAuthKey)
-		user, err := authenticator.VerifyToken(token)
+		sessionData, err := session.Get(msg.SessionId)
+		if err != nil {
+			logger.Println(fmt.Sprint("process.error: ", err))
 
+			return nil
+		}
+
+		user, err := authenticator.VerifyToken(sessionData.Token)
 		if err != nil {
 			logger.Println(fmt.Sprint("process.error: ", err))
 
@@ -43,17 +48,18 @@ func Process(logger *log.Logger, queue *utils.Queue, session *utils.Session, aut
 
 func main() {
 	logger := log.New(os.Stdout, "[Gateway] ", log.Ldate|log.Ltime)
-	ctx := context.Background()
-	mux := http.NewServeMux()
-	server := &http.Server{
-		Addr:    addr,
-		Handler: mux,
-	}
 
 	if os.Getenv("ENV") != "production" {
 		if err := godotenv.Load("../.env"); err != nil {
 			logger.Fatalln(fmt.Scan("main.error", err))
 		}
+	}
+
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	server := &http.Server{
+		Addr:    addr,
+		Handler: mux,
 	}
 
 	connections := gwUtils.NewConnections()

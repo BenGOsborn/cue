@@ -8,8 +8,20 @@ import (
 )
 
 // Handle the authentication callback
-func HandleLogout(logger *log.Logger) func(w http.ResponseWriter, r *http.Request) {
+func HandleLogout(session *utils.Session, logger *log.Logger) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Delete the session
+		sessionCookie, err := r.Cookie(utils.SessionCookie)
+		if err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		if err := session.Delete(sessionCookie.Value); err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
 		// Remove the auth cookie
 		authCookie := http.Cookie{
 			Name:     utils.SessionCookie,
