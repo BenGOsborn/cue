@@ -9,10 +9,8 @@ import (
 )
 
 // Attach the route to the server and start associated functions
-func Attach(server *http.ServeMux, path string, connections *gwUtils.Connections, queues []*utils.Queue, logger *log.Logger, process func(string, *gwUtils.Message) error) {
+func Attach(server *http.ServeMux, path string, connections *gwUtils.Connections, queue *utils.Queue, logger *log.Logger, process func(string, *gwUtils.Message) error) {
 	server.HandleFunc(path, HandleWs(connections, logger, process))
 
-	for _, queue := range queues {
-		go ProcessQueue(connections, queue, logger)
-	}
+	go ProcessQueue(connections, queue, logger)
 }

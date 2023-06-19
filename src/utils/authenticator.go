@@ -3,8 +3,6 @@ package utils
 import (
 	"context"
 	"errors"
-	"fmt"
-	"strings"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
@@ -42,16 +40,13 @@ func NewAuthenticator(ctx context.Context, auth0Domain string, auth0CallbackUrl 
 	}, nil
 }
 
-// Verifies  a token is valid
+// Create a login URL with a new state
+func (a *Authenticator) GetAuthURL(state string) string {
+	return a.config.AuthCodeURL(state)
+}
+
+// Verify an id token is valid
 func (a *Authenticator) VerifyIDToken(token string) (*oidc.IDToken, error) {
-	split := strings.Split(token, " ")
-	if len(split) != 2 {
-		return nil, errors.New("invalid token format")
-	}
-	token = split[1]
-
-	fmt.Println(token)
-
 	oidcConfig := &oidc.Config{
 		ClientID: a.config.ClientID,
 	}
@@ -59,17 +54,26 @@ func (a *Authenticator) VerifyIDToken(token string) (*oidc.IDToken, error) {
 	return a.provider.Verifier(oidcConfig).Verify(a.ctx, token)
 }
 
-// Create a login URL with a new state
-func (a *Authenticator) GetAuthURL(state string) string {
-	return a.config.AuthCodeURL(state)
-}
-
 // Exchange an authorization code for a token
-func (a *Authenticator) ExchangeCodeForToken(code string) (*oauth2.Token, error) {
+func (a *Authenticator) ExchangeCodeForToken(code string) (string, *oidc.IDToken, error) {
 	token, err := a.config.Exchange(a.ctx, code)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
-	return token, nil
+	rawIdToken, ok := token.Extra("id_token").(string)
+	if !ok {
+		return "", nil, errors.New("no id_token field in oauth2 token")
+	}
+
+	oidcConfig := &oidc.Config{
+		ClientID: a.config.ClientID,
+	}
+
+	idToken, err := a.provider.Verifier(oidcConfig).Verify(a.ctx, rawIdToken)
+	if err != nil {
+		return "", nil, err
+	}
+
+	return rawIdToken, idToken, nil
 }

@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/bengosborn/cue/helpers"
 	"github.com/bengosborn/cue/utils"
 )
 
@@ -11,7 +12,7 @@ import (
 func HandleAuth(logger *log.Logger, redis *utils.Redis, authenticator *utils.Authenticator) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Create a new session
-		key, err := utils.GenerateRandomString(utils.TokenLength)
+		key, err := helpers.GenerateRandomString(utils.TokenLength)
 
 		if err != nil {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -29,7 +30,7 @@ func HandleAuth(logger *log.Logger, redis *utils.Redis, authenticator *utils.Aut
 		http.SetCookie(w, &cookie)
 
 		// Create a redirect URL
-		state, err := utils.GenerateRandomString(utils.TokenLength)
+		state, err := helpers.GenerateRandomString(utils.TokenLength)
 
 		if err != nil {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)

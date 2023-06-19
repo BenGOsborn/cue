@@ -36,19 +36,18 @@ func HandleCallback(redis *utils.Redis, authenticator *utils.Authenticator, logg
 		// Exchange the authorization code for a token
 		code := r.URL.Query().Get("code")
 
-		token, err := authenticator.ExchangeCodeForToken(code)
-
+		rawIdToken, idToken, err := authenticator.ExchangeCodeForToken(code)
 		if err != nil {
 			http.Error(w, "Failed to exchange authorization code for token", http.StatusInternalServerError)
 			return
 		}
 
-		// Set the access cookie
+		// Set the auth cookie
 		authCookie := http.Cookie{
-			Name:     utils.AuthAccessCookie,
-			Value:    "Bearer " + token.AccessToken,
+			Name:     utils.AuthIdCookie,
+			Value:    "Bearer " + rawIdToken,
 			Path:     "/",
-			MaxAge:   int(time.Until(token.Expiry).Seconds()),
+			MaxAge:   int(time.Until(idToken.Expiry).Seconds()),
 			HttpOnly: true,
 		}
 

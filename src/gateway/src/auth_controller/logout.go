@@ -10,9 +10,9 @@ import (
 // Handle the authentication callback
 func HandleLogout(logger *log.Logger) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Remove the access cookie
+		// Remove the auth cookie
 		authCookie := http.Cookie{
-			Name:     utils.AuthAccessCookie,
+			Name:     utils.AuthIdCookie,
 			Value:    "",
 			Path:     "/",
 			MaxAge:   int(-1),
