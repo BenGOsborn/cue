@@ -17,12 +17,13 @@ import (
 var addr = ":8080"
 
 // Process a message
-func Process(logger *log.Logger, queue *utils.Queue, authenticator *utils.Authenticator) func(string, *gwUtils.Message) error {
+func Process(logger *log.Logger, queue *utils.Queue, session *utils.Session, authenticator *utils.Authenticator) func(string, *gwUtils.Message) error {
 	return func(receiver string, msg *gwUtils.Message) error {
 		logger.Println("process.received: received raw message")
 
 		// Authenticate
-		user, err := authenticator.VerifyToken(msg.Auth)
+		token := session.Get(msg.SessionId, gwUtils.SessionAuthKey)
+		user, err := authenticator.VerifyToken(token)
 
 		if err != nil {
 			logger.Println(fmt.Sprint("process.error: ", err))
@@ -64,6 +65,8 @@ func main() {
 	}
 	defer redis.Close()
 
+	session := utils.NewSession(redis)
+
 	queue, err := utils.NewQueue(ctx, os.Getenv("KAFKA_USERNAME"), os.Getenv("KAFKA_PASSWORD"), os.Getenv("KAFKA_ENDPOINT"), os.Getenv("KAFKA_TOPIC"), logger)
 	if err != nil {
 		logger.Fatalln(fmt.Scan("main.error", err))
@@ -75,8 +78,8 @@ func main() {
 		logger.Fatalln(fmt.Scan("main.error", err))
 	}
 
-	gwController.Attach(mux, "/ws", connections, queue, logger, Process(logger, queue, authenticator))
-	authController.Attach(mux, "/auth", logger, redis, authenticator)
+	gwController.Attach(mux, "/ws", connections, queue, logger, Process(logger, queue, session, authenticator))
+	authController.Attach(mux, "/auth", logger, session, authenticator)
 
 	logger.Println("server listening on address", addr)
 	logger.Fatalln(server.ListenAndServe())

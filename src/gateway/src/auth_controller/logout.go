@@ -12,7 +12,7 @@ func HandleLogout(logger *log.Logger) func(w http.ResponseWriter, r *http.Reques
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Remove the auth cookie
 		authCookie := http.Cookie{
-			Name:     utils.AuthIdCookie,
+			Name:     utils.SessionCookie,
 			Value:    "",
 			Path:     "/",
 			MaxAge:   int(-1),

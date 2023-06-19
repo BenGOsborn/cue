@@ -5,7 +5,7 @@ import (
 )
 
 type Message struct {
-	Auth      string          `json:"auth"`
+	SessionId string          `json:"sessionId"`
 	EventType utils.EventType `json:"eventType"`
 	Body      string          `json:"body"`
 }

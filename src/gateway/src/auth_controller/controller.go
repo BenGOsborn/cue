@@ -8,8 +8,8 @@ import (
 )
 
 // Attach the route to the server
-func Attach(server *http.ServeMux, prefix string, logger *log.Logger, client *utils.Redis, authenticator *utils.Authenticator) {
-	server.HandleFunc(prefix, HandleAuth(logger, client, authenticator))
-	server.HandleFunc(prefix+"/callback", HandleCallback(client, authenticator, logger))
+func Attach(server *http.ServeMux, prefix string, logger *log.Logger, session *utils.Session, authenticator *utils.Authenticator) {
+	server.HandleFunc(prefix, HandleAuth(logger, session, authenticator))
+	server.HandleFunc(prefix+"/callback", HandleCallback(session, authenticator, logger))
 	server.HandleFunc(prefix+"/logout", HandleLogout(logger))
 }

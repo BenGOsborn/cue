@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -12,8 +13,9 @@ type Redis struct {
 	ctx    context.Context
 }
 
-func formatKey(prefix string, key string) string {
-	return prefix + ":" + key
+// Format a redis key
+func FormatKey(parts ...string) string {
+	return strings.Join(parts, ":")
 }
 
 // Create a new redis instance
@@ -33,16 +35,16 @@ func (redis *Redis) Close() {
 }
 
 // Add a new key
-func (r *Redis) Set(prefix string, key string, value string, expiry time.Duration) error {
-	return r.client.Set(r.ctx, formatKey(prefix, key), value, expiry).Err()
+func (r *Redis) Set(key string, value string, expiry time.Duration) error {
+	return r.client.Set(r.ctx, key, value, expiry).Err()
 }
 
 // Retrieve a key
-func (r *Redis) Get(prefix string, key string) string {
-	return r.client.Get(r.ctx, formatKey(prefix, key)).Val()
+func (r *Redis) Get(key string) string {
+	return r.client.Get(r.ctx, key).Val()
 }
 
 // Remove a key
-func (r *Redis) Remove(prefix string, key string) {
-	r.client.Del(r.ctx, formatKey(prefix, key))
+func (r *Redis) Remove(key string) {
+	r.client.Del(r.ctx, key)
 }
