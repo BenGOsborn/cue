@@ -43,7 +43,7 @@ func HandleAuth(logger *log.Logger, session *utils.Session, authenticator *utils
 			return
 		}
 
-		logger.Println("handleauth.success: set csrf cookie")
+		logger.Println("handleauth.success: created new auth session")
 
 		http.Redirect(w, r, redirectUrl, http.StatusFound)
 	}

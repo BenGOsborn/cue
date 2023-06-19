@@ -37,6 +37,8 @@ func HandleCallback(session *utils.Session, authenticator *utils.Authenticator, 
 
 		session.Set(sessionCookie.Value, gwUtils.SessionAuthKey, rawIdToken)
 
+		logger.Println("handlecallback.success: authenticated new session")
+
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	}

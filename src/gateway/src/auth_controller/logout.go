@@ -21,7 +21,7 @@ func HandleLogout(logger *log.Logger) func(w http.ResponseWriter, r *http.Reques
 
 		http.SetCookie(w, &authCookie)
 
-		logger.Println("handlelogout.success: removed authentication cookie")
+		logger.Println("handlelogout.success: logged out")
 
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))

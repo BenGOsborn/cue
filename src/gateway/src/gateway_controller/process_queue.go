@@ -24,6 +24,8 @@ func ProcessQueue(connections *gwUtils.Connections, queue *utils.Queue, logger *
 				return err
 			}
 
+			logger.Println("processqueue.success: sent message to connection")
+
 			return nil
 		}); !ok || err != nil {
 			if !ok {
