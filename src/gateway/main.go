@@ -32,7 +32,7 @@ func Process(logger *log.Logger, queue *utils.Queue, session *utils.Session, aut
 		}
 
 		// Add to queue
-		queueMsg := utils.QueueMessage{Receiver: receiver, User: user, EventType: msg.EventType, Body: msg.Body}
+		queueMsg := utils.QueueMessage{Receiver: receiver, User: user.Subject, EventType: msg.EventType, Body: msg.Body}
 		queue.Send(&queueMsg)
 
 		logger.Println("process.enqueued: added message to queue")
