@@ -1,6 +1,7 @@
 package utils
 
-type QueueMessage struct {
+type BrokerMessage struct {
+	Id        string    `json:"id"`
 	Receiver  string    `json:"receiver"`
 	User      string    `json:"user"`
 	EventType EventType `json:"eventType"`

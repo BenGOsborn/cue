@@ -12,13 +12,14 @@ import (
 	gwUtils "github.com/bengosborn/cue/gateway/utils"
 	"github.com/bengosborn/cue/helpers"
 	utils "github.com/bengosborn/cue/utils"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 )
 
 var addr = "0.0.0.0:8080"
 
 // Process a message
-func Process(logger *log.Logger, queue *utils.Queue, session *gwUtils.Session, authenticator *gwUtils.Authenticator) func(string, *gwUtils.Message) error {
+func Process(logger *log.Logger, broker utils.Broker, session *gwUtils.Session, authenticator *gwUtils.Authenticator) func(string, *gwUtils.Message) error {
 	return func(receiver string, msg *gwUtils.Message) error {
 		logger.Println("process.received: received raw message")
 
@@ -37,11 +38,12 @@ func Process(logger *log.Logger, queue *utils.Queue, session *gwUtils.Session, a
 			return nil
 		}
 
-		// Add to queue
-		queueMsg := utils.QueueMessage{Receiver: receiver, User: user.Subject, EventType: msg.EventType, Body: msg.Body}
-		queue.Send(&queueMsg)
+		// Send to broker
+		brokerMsgId := uuid.NewString()
+		brokerMsg := utils.BrokerMessage{Id: brokerMsgId, Receiver: receiver, User: user.Subject, EventType: msg.EventType, Body: msg.Body}
+		broker.Send(&brokerMsg)
 
-		logger.Println("process.enqueued: added message to queue")
+		logger.Println("process.sent: sent message to broker")
 
 		return nil
 	}
@@ -74,11 +76,10 @@ func main() {
 	}
 	defer redis.Close()
 
-	queue, err := utils.NewQueue(ctx, os.Getenv("KAFKA_USERNAME"), os.Getenv("KAFKA_PASSWORD"), os.Getenv("KAFKA_ENDPOINT"), os.Getenv("KAFKA_TOPIC"), logger)
+	broker := utils.NewBrokerRedis(ctx, redis, os.Getenv("REDIS_CHANNEL"))
 	if err != nil {
 		logger.Fatalln(fmt.Scan("main.error", err))
 	}
-	defer queue.Close()
 
 	authenticator, err := gwUtils.NewAuthenticator(ctx, os.Getenv("AUTH0_DOMAIN"), os.Getenv("AUTH0_CALLBACK_URL"), os.Getenv("AUTH0_CLIENT_ID"), os.Getenv("AUTH0_CLIENT_SECRET"))
 	if err != nil {
@@ -88,7 +89,7 @@ func main() {
 	session := gwUtils.NewSession(ctx, redis)
 
 	// Start server
-	gwController.Attach(mux, "/ws", connections, queue, logger, Process(logger, queue, session, authenticator))
+	gwController.Attach(mux, "/ws", connections, broker, logger, Process(logger, broker, session, authenticator))
 	authController.Attach(mux, "/auth", logger, session, authenticator)
 
 	logger.Println("server listening on address", addr)
