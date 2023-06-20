@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bengosborn/cue/helpers"
 	"github.com/bsm/redislock"
 	"github.com/redis/go-redis/v9"
 )
@@ -74,31 +75,31 @@ func (r *ResourceLock) UnlockWrite(id string) error {
 }
 
 type ResourceLockDistributed struct {
-	mutex  sync.Mutex
-	client *redislock.Client
-	lock   map[string]*redislock.Lock
-	ctx    context.Context
-	ttl    time.Duration
+	mutex           sync.Mutex
+	redisClient     *redis.Client
+	redisLockClient *redislock.Client
+	lock            map[string]*redislock.Lock
+	ctx             context.Context
+	ttl             time.Duration
 }
+
+const (
+	resourcePrefix = "resource"
+)
 
 // Create a new distributed resource lock
-func NewResourceLockDistributed(ctx context.Context, redisUrl string, ttl time.Duration) (*ResourceLockDistributed, error) {
-	opt, err := redis.ParseURL(redisUrl)
-	if err != nil {
-		return nil, err
-	}
-	redisClient := redis.NewClient(opt)
-	redisLockClient := redislock.New(redisClient)
+func NewResourceLockDistributed(ctx context.Context, redis *redis.Client, ttl time.Duration) (*ResourceLockDistributed, error) {
+	redisLockClient := redislock.New(redis)
 
-	return &ResourceLockDistributed{ctx: ctx, client: redisLockClient, lock: make(map[string]*redislock.Lock), ttl: ttl}, nil
+	return &ResourceLockDistributed{ctx: ctx, redisClient: redis, redisLockClient: redisLockClient, lock: make(map[string]*redislock.Lock), ttl: ttl}, nil
 }
 
-// Lock the mutex
+// Lock the resource
 func (r *ResourceLockDistributed) Lock(id string) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	redisLock, err := r.client.Obtain(r.ctx, id, r.ttl, nil)
+	redisLock, err := r.redisLockClient.Obtain(r.ctx, id, r.ttl, nil)
 	if err != nil {
 		return err
 	}
@@ -108,8 +109,8 @@ func (r *ResourceLockDistributed) Lock(id string) error {
 	return nil
 }
 
-// Unlock the mutex
-func (r *ResourceLockDistributed) Unlock(id string) error {
+// Unlock the resource and declare if it has been processed
+func (r *ResourceLockDistributed) Unlock(id string, processed bool) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -118,5 +119,22 @@ func (r *ResourceLockDistributed) Unlock(id string) error {
 		return errors.New("no lock with this id exists")
 	}
 
+	if processed {
+		if err := r.redisClient.Set(r.ctx, helpers.FormatKey(resourcePrefix, id), "TRUE", r.ttl).Err(); err != nil {
+			return err
+		}
+	}
+
 	return redisLock.Release(r.ctx)
+}
+
+// Return whether a resource has been processed
+func (r *ResourceLockDistributed) IsProcessed(id string) (bool, error) {
+	result, err := r.redisClient.Exists(r.ctx, id).Result()
+
+	if err != nil {
+		return false, nil
+	}
+
+	return result == 1, nil
 }

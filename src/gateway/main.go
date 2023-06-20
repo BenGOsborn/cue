@@ -10,6 +10,7 @@ import (
 	authController "github.com/bengosborn/cue/gateway/auth_controller"
 	gwController "github.com/bengosborn/cue/gateway/gateway_controller"
 	gwUtils "github.com/bengosborn/cue/gateway/utils"
+	"github.com/bengosborn/cue/helpers"
 	utils "github.com/bengosborn/cue/utils"
 	"github.com/joho/godotenv"
 )
@@ -47,6 +48,7 @@ func Process(logger *log.Logger, queue *utils.Queue, session *gwUtils.Session, a
 }
 
 func main() {
+	// Initialize environment
 	logger := log.New(os.Stdout, "[Gateway] ", log.Ldate|log.Ltime)
 
 	if os.Getenv("ENV") != "production" {
@@ -62,16 +64,15 @@ func main() {
 		Handler: mux,
 	}
 
+	// Initialize data structures
 	connections := gwUtils.NewConnections()
 	defer connections.Close()
 
-	redis, err := utils.NewRedis(ctx, os.Getenv("REDIS_URL"))
+	redis, err := helpers.NewRedis(os.Getenv("REDIS_URL"))
 	if err != nil {
 		logger.Fatalln(fmt.Scan("main.error", err))
 	}
 	defer redis.Close()
-
-	session := gwUtils.NewSession(redis)
 
 	queue, err := utils.NewQueue(ctx, os.Getenv("KAFKA_USERNAME"), os.Getenv("KAFKA_PASSWORD"), os.Getenv("KAFKA_ENDPOINT"), os.Getenv("KAFKA_TOPIC"), logger)
 	if err != nil {
@@ -84,6 +85,9 @@ func main() {
 		logger.Fatalln(fmt.Scan("main.error", err))
 	}
 
+	session := gwUtils.NewSession(ctx, redis)
+
+	// Start server
 	gwController.Attach(mux, "/ws", connections, queue, logger, Process(logger, queue, session, authenticator))
 	authController.Attach(mux, "/auth", logger, session, authenticator)
 

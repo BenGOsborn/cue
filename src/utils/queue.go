@@ -55,24 +55,37 @@ func (q *Queue) Close() {
 }
 
 // Listen to queue events
-func (q *Queue) Listen(fn func(*QueueMessage)) error {
+func (q *Queue) Listen(fn func(*QueueMessage) bool, lock *ResourceLockDistributed) error {
 	for {
 		msg, err := q.reader.ReadMessage(q.ctx)
 		if err != nil {
 			return err
 		}
 
+		id := string(msg.Key)
 		var queueMessage QueueMessage
-
 		if err := json.Unmarshal([]byte(msg.Value), &queueMessage); err != nil {
 			continue
 		}
 
-		go fn(&queueMessage)
+		go func() {
+			if lock != nil {
+				if err := lock.Lock(id); err != nil {
+					return
+				}
+
+				if processed, err := lock.IsProcessed(id); processed || err != nil {
+					lock.Unlock(id, false)
+				}
+
+				ok := fn(&queueMessage)
+				lock.Unlock(id, ok)
+			} else {
+				fn(&queueMessage)
+			}
+		}()
 	}
 }
-
-// Consume queue events (in a group)
 
 // Send message
 func (q *Queue) Send(msg *QueueMessage) error {

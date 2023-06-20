@@ -12,7 +12,7 @@ import (
 
 // Process queued messages
 func ProcessQueue(connections *gwUtils.Connections, queue *utils.Queue, logger *log.Logger) {
-	if err := queue.Listen(func(queueMessage *utils.QueueMessage) {
+	if err := queue.Listen(func(queueMessage *utils.QueueMessage) bool {
 		if ok, err := connections.Apply(queueMessage.Receiver, func(_ string, conn *websocket.Conn) error {
 			data, err := json.Marshal(queueMessage)
 
@@ -33,8 +33,12 @@ func ProcessQueue(connections *gwUtils.Connections, queue *utils.Queue, logger *
 			} else {
 				logger.Println(fmt.Sprint("processqueue.error: ", err))
 			}
+
+			return false
 		}
-	}); err != nil {
+
+		return true
+	}, nil); err != nil {
 		logger.Fatalln(fmt.Sprint("processqueue.error: ", err))
 	}
 }
