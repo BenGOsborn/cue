@@ -72,6 +72,8 @@ func (q *Queue) Listen(fn func(*QueueMessage)) error {
 	}
 }
 
+// Consume queue events (in a group)
+
 // Send message
 func (q *Queue) Send(msg *QueueMessage) error {
 	data, err := json.Marshal(msg)
