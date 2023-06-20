@@ -73,9 +73,10 @@ func (q *Queue) Listen(fn func(*QueueMessage) bool, lock *ResourceLockDistribute
 				if err := lock.Lock(id); err != nil {
 					return
 				}
+				defer lock.Unlock(id, false)
 
 				if processed, err := lock.IsProcessed(id); processed || err != nil {
-					lock.Unlock(id, false)
+					return
 				}
 
 				ok := fn(&queueMessage)
