@@ -11,7 +11,7 @@ import (
 )
 
 // Process messages from broker
-func Process(connections *gwUtils.Connections, broker utils.Broker, logger *log.Logger) {
+func Process(connections *gwUtils.Connections, broker utils.Broker, lock *utils.ResourceLockDistributed, logger *log.Logger) {
 	if err := broker.Listen(func(msg *utils.BrokerMessage) bool {
 		if ok, err := connections.Apply(msg.Receiver, func(_ string, conn *websocket.Conn) error {
 			data, err := json.Marshal(msg)
@@ -38,7 +38,7 @@ func Process(connections *gwUtils.Connections, broker utils.Broker, logger *log.
 		}
 
 		return true
-	}, nil); err != nil {
+	}, lock); err != nil {
 		logger.Fatalln(fmt.Sprint("process.error: ", err))
 	}
 }

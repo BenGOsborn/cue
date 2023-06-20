@@ -130,8 +130,7 @@ func (r *ResourceLockDistributed) Unlock(id string, processed bool) error {
 
 // Return whether a resource has been processed
 func (r *ResourceLockDistributed) IsProcessed(id string) (bool, error) {
-	result, err := r.redisClient.Exists(r.ctx, id).Result()
-
+	result, err := r.redisClient.Exists(r.ctx, helpers.FormatKey(resourcePrefix, id)).Result()
 	if err != nil {
 		return false, nil
 	}

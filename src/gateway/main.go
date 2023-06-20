@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	authController "github.com/bengosborn/cue/gateway/auth_controller"
 	gwController "github.com/bengosborn/cue/gateway/gateway_controller"
@@ -17,6 +18,7 @@ import (
 )
 
 var addr = "0.0.0.0:8080"
+var timeout = 5 * time.Minute
 
 // Process a message
 func Process(logger *log.Logger, broker utils.Broker, session *gwUtils.Session, authenticator *gwUtils.Authenticator) func(string, *gwUtils.Message) error {
@@ -86,10 +88,15 @@ func main() {
 		logger.Fatalln(fmt.Scan("main.error", err))
 	}
 
+	lock, err := utils.NewResourceLockDistributed(ctx, redis, timeout)
+	if err != nil {
+		logger.Fatalln(fmt.Scan("main.error", err))
+	}
+
 	session := gwUtils.NewSession(ctx, redis)
 
 	// Start server
-	gwController.Attach(mux, "/ws", connections, broker, logger, Process(logger, broker, session, authenticator))
+	gwController.Attach(mux, "/ws", connections, broker, lock, logger, Process(logger, broker, session, authenticator))
 	authController.Attach(mux, "/auth", logger, session, authenticator)
 
 	logger.Println("server listening on address", addr)
