@@ -78,7 +78,7 @@ func main() {
 	}
 	defer redis.Close()
 
-	broker := utils.NewBrokerRedis(ctx, redis, os.Getenv("REDIS_CHANNEL"))
+	broker := utils.NewBrokerRedis(ctx, redis, os.Getenv("REDIS_GATEWAY_CHANNEL"))
 	if err != nil {
 		logger.Fatalln(fmt.Scan("main.error", err))
 	}
