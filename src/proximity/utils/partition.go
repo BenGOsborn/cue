@@ -3,6 +3,7 @@ package utils
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 type Partition struct {
@@ -32,16 +33,17 @@ func calculatePartition(latitude float32, longitude float32, longitudeMin float3
 	// Recursive partitioning longitude
 	midLong := (longitudeMin + longitudeMax) / 2
 
-	var longDigit string
 	var newLongMin float32
 	var newLongMax float32
 
+	id := 0
+
 	if longitude < midLong {
-		longDigit = "0"
+		id += 0
 		newLongMin = longitudeMin
 		newLongMax = midLong
 	} else {
-		longDigit = "1"
+		id += 1
 		newLongMin = midLong
 		newLongMax = longitudeMax
 	}
@@ -49,16 +51,15 @@ func calculatePartition(latitude float32, longitude float32, longitudeMin float3
 	// Recursive partitioning latitude
 	midLat := (latitudeMin + latitudeMax) / 2
 
-	var latDigit string
 	var newLatMin float32
 	var newLatMax float32
 
 	if latitude < midLat {
-		latDigit = "0"
+		id += 0
 		newLatMin = latitudeMin
 		newLatMax = midLat
 	} else {
-		latDigit = "1"
+		id += 2
 		newLatMin = midLat
 		newLatMax = latitudeMax
 	}
@@ -68,7 +69,7 @@ func calculatePartition(latitude float32, longitude float32, longitudeMin float3
 		return "", err
 	}
 
-	return fmt.Sprint(longDigit, latDigit, suffix), nil
+	return fmt.Sprint(id, suffix), nil
 }
 
 // Create a new partition from a latitude and longitude
@@ -84,4 +85,9 @@ func NewPartition(latitude float32, longitude float32) (*Partition, error) {
 // Format the partition
 func (p *Partition) String() string {
 	return p.encoded
+}
+
+// Check if one partition contains another
+func (p *Partition) Contains(partition *Partition) bool {
+	return strings.Contains(partition.encoded, p.encoded)
 }
