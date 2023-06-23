@@ -1,0 +1,1 @@
+cd src && go run proximity/main.go
