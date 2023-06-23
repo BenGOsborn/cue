@@ -91,3 +91,8 @@ func (p *Partition) String() string {
 func (p *Partition) Contains(partition *Partition) bool {
 	return strings.Contains(partition.encoded, p.encoded)
 }
+
+// Find all surrounding partitions e.g. the surrounding 8 items
+func (p *Partition) Surrounding() {
+	// **** I do not know what I am doing here
+}
