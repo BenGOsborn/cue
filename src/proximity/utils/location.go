@@ -18,6 +18,8 @@ type Location struct {
 	user     map[string]*Partition           // user -> partition
 }
 
+// **** This will need to work with Redis instead to make it completely distributed
+
 // Make a new location structure
 func NewLocation() *Location {
 	return &Location{location: make(map[string]map[string]*UserData), user: make(map[string]*Partition), lock: sync.RWMutex{}}

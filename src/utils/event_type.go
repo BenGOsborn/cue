@@ -3,6 +3,8 @@ package utils
 type EventType int
 
 const (
-	Error EventType = iota
-	Placeholder
+	// Proximity service events
+	ProximityError EventType = iota
+	ProximitySendLocation
+	ProximityRequestNearby
 )

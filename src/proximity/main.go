@@ -30,4 +30,11 @@ func main() {
 	} else {
 		fmt.Println(out)
 	}
+
+	partition, err := utils.NewPartitionFromEncoded("21212")
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println(partition)
+	}
 }

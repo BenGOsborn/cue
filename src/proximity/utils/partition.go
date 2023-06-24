@@ -127,6 +127,32 @@ func NewPartitonFromChunks(chunks *[]*Chunk) (*Partition, error) {
 	return &Partition{chunks: chunks, encoded: buffer.String()}, nil
 }
 
+// Create a new partition from a encoded string
+func NewPartitionFromEncoded(encoded string) (*Partition, error) {
+	chunks := make([]*Chunk, len(encoded))
+
+	for i, char := range encoded {
+		var chunk Chunk
+
+		switch string(char) {
+		case "0":
+			chunk = Chunk{x: 0, y: 0}
+		case "1":
+			chunk = Chunk{x: 1, y: 0}
+		case "2":
+			chunk = Chunk{x: 0, y: 1}
+		case "3":
+			chunk = Chunk{x: 1, y: 1}
+		default:
+			return nil, errors.New("invalid string character")
+		}
+
+		chunks[len(encoded)-i-1] = &chunk
+	}
+
+	return &Partition{encoded: encoded, chunks: &chunks}, nil
+}
+
 // Format the partition
 func (p *Partition) String() string {
 	return p.encoded
