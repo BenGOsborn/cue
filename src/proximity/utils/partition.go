@@ -19,8 +19,7 @@ type Partition struct {
 
 // Depth of the partitioning e.g. the size of each partition
 const (
-	// PartitionDepth = 10
-	PartitionDepth = 3
+	PartitionDepth = 10
 	LatMin         = -90
 	LatMax         = 90
 	LongMin        = -180
@@ -139,7 +138,7 @@ func (p *Partition) Contains(partition *Partition) bool {
 }
 
 // Translate a partition string in some direction
-func translate(partition *Partition, direction Direction) (*Partition, error) {
+func (p *Partition) Translate(direction Direction) (*Partition, error) {
 	var remainderY int
 	var remainderX int
 
@@ -160,7 +159,7 @@ func translate(partition *Partition, direction Direction) (*Partition, error) {
 		return nil, errors.New("invalid direction")
 	}
 
-	chunks := partition.chunks
+	chunks := p.chunks
 	newChunks := make([]*Chunk, len(*chunks))
 
 	for i, chunk := range *chunks {
@@ -205,21 +204,9 @@ func translate(partition *Partition, direction Direction) (*Partition, error) {
 	return newPartition, nil
 }
 
-type QueueNode struct {
+type queueNode struct {
 	remaining int
 	partition *Partition
-}
-
-// Add a new partition
-func addPartition(node *QueueNode, queue *list.List, direction Direction) error {
-	partition, err := translate(node.partition, direction)
-	if err != nil {
-		return err
-	}
-
-	queue.PushBack(&QueueNode{remaining: node.remaining - 1, partition: partition})
-
-	return nil
 }
 
 // Find all nearby partitions within a given radius
@@ -228,12 +215,12 @@ func (p *Partition) Nearby(radius int) (*[]*Partition, error) {
 
 	seen := make(map[string]bool)
 	queue := list.New()
-	queue.PushBack(&QueueNode{remaining: radius, partition: p})
+	queue.PushBack(&queueNode{remaining: radius, partition: p})
 
 	// BFS for surrounding partitons
 	for queue.Len() > 0 {
 		current := queue.Front()
-		node := current.Value.(*QueueNode)
+		node := current.Value.(*queueNode)
 		queue.Remove(current)
 
 		// No duplicates
@@ -249,16 +236,27 @@ func (p *Partition) Nearby(radius int) (*[]*Partition, error) {
 			continue
 		}
 
-		if err := addPartition(node, queue, DirUp); err != nil {
+		addPartition := func(direction Direction) error {
+			partition, err := node.partition.Translate(direction)
+			if err != nil {
+				return err
+			}
+
+			queue.PushBack(&queueNode{remaining: node.remaining - 1, partition: partition})
+
+			return nil
+		}
+
+		if err := addPartition(DirUp); err != nil {
 			return nil, err
 		}
-		if err := addPartition(node, queue, DirDown); err != nil {
+		if err := addPartition(DirDown); err != nil {
 			return nil, err
 		}
-		if err := addPartition(node, queue, DirLeft); err != nil {
+		if err := addPartition(DirLeft); err != nil {
 			return nil, err
 		}
-		if err := addPartition(node, queue, DirRight); err != nil {
+		if err := addPartition(DirRight); err != nil {
 			return nil, err
 		}
 	}
