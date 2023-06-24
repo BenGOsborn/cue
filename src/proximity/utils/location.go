@@ -67,7 +67,7 @@ func (u *Location) Remove(user string) error {
 }
 
 // Get nearby users
-func (u *Location) Nearby(user string, radius uint) ([]string, error) {
+func (u *Location) Nearby(user string, radius int) ([]string, error) {
 	u.lock.RLock()
 	defer u.lock.RUnlock()
 
@@ -78,7 +78,7 @@ func (u *Location) Nearby(user string, radius uint) ([]string, error) {
 	}
 
 	// Get the nearby partitions and find all users
-	partitions, err := userPartition.Surrounding(radius)
+	partitions, err := userPartition.Nearby(radius)
 	if err != nil {
 		return nil, err
 	}

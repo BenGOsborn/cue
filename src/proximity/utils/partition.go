@@ -206,42 +206,29 @@ func translate(partition *Partition, direction Direction) (*Partition, error) {
 }
 
 type QueueNode struct {
-	remaining uint
+	remaining int
 	partition *Partition
 }
 
 // Add a new partition
-func addPartition(node *QueueNode, queue *list.List, seen *map[string]bool, out *[]*Partition, direction Direction) error {
+func addPartition(node *QueueNode, queue *list.List, direction Direction) error {
 	partition, err := translate(node.partition, direction)
 	if err != nil {
 		return err
 	}
 
-	// No duplicates
-	if _, ok := (*seen)[partition.encoded]; ok {
-		return nil
-	}
-	(*seen)[partition.encoded] = true
-
-	*out = append(*out, partition)
-
-	// Add to queue
-	remaining := node.remaining - 1
-
-	if remaining > 0 {
-		queue.PushBack(&QueueNode{remaining: remaining, partition: partition})
-	}
+	queue.PushBack(&QueueNode{remaining: node.remaining - 1, partition: partition})
 
 	return nil
 }
 
-// Find all surrounding partitions within a given radius
-func (p *Partition) Surrounding(radius uint) (*[]*Partition, error) {
+// Find all nearby partitions within a given radius
+func (p *Partition) Nearby(radius int) (*[]*Partition, error) {
+	out := make([]*Partition, 0)
+
 	seen := make(map[string]bool)
 	queue := list.New()
 	queue.PushBack(&QueueNode{remaining: radius, partition: p})
-
-	out := make([]*Partition, 0)
 
 	// BFS for surrounding partitons
 	for queue.Len() > 0 {
@@ -249,17 +236,29 @@ func (p *Partition) Surrounding(radius uint) (*[]*Partition, error) {
 		node := current.Value.(*QueueNode)
 		queue.Remove(current)
 
-		// Create new surrounding partitions
-		if err := addPartition(node, queue, &seen, &out, DirUp); err != nil {
+		// No duplicates
+		if _, ok := seen[node.partition.encoded]; ok {
+			continue
+		}
+		seen[node.partition.encoded] = true
+
+		out = append(out, node.partition)
+
+		// Identify nearby partitions
+		if node.remaining <= 0 {
+			continue
+		}
+
+		if err := addPartition(node, queue, DirUp); err != nil {
 			return nil, err
 		}
-		if err := addPartition(node, queue, &seen, &out, DirDown); err != nil {
+		if err := addPartition(node, queue, DirDown); err != nil {
 			return nil, err
 		}
-		if err := addPartition(node, queue, &seen, &out, DirLeft); err != nil {
+		if err := addPartition(node, queue, DirLeft); err != nil {
 			return nil, err
 		}
-		if err := addPartition(node, queue, &seen, &out, DirRight); err != nil {
+		if err := addPartition(node, queue, DirRight); err != nil {
 			return nil, err
 		}
 	}

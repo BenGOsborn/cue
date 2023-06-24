@@ -24,7 +24,7 @@ func main() {
 		return
 	}
 
-	out, err := location.Nearby(user1, 2)
+	out, err := location.Nearby(user1, 0)
 	if err != nil {
 		fmt.Println(err)
 	} else {
