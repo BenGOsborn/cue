@@ -19,6 +19,9 @@ func Process(broker utils.Broker, lock *utils.ResourceLockDistributed, logger *l
 			return false
 		}
 
+		// **** Might need to use batching depending on the size of the messages to come up with some state locally and then write it to Redis every few seconds
+		// for consistency (read from Redis, write locally until timeout where we aggregate the messages and send them up)
+
 		return true
 
 	}, lock); err != nil {

@@ -63,6 +63,8 @@ type ResourceLockDistributed struct {
 	ttl             time.Duration
 }
 
+// **** This needs to use sync.map for thread safety AND also needs to start blocking whilst not blocking other ids
+
 const (
 	resourcePrefix = "resource"
 )
