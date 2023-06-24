@@ -21,10 +21,10 @@ type Partition struct {
 const (
 	// PartitionDepth = 10
 	PartitionDepth = 3
-	LatitudeMin    = -90
-	LatitudeMax    = 90
-	LongitudeMin   = -180
-	LongitudeMax   = 180
+	LatMin         = -90
+	LatMax         = 90
+	LongMin        = -180
+	LongMax        = 180
 )
 
 // Translate directions
@@ -38,65 +38,65 @@ const (
 )
 
 // Partition a given latitude and longitude
-func partition(latitude float32, longitude float32, latitudeMin float32, latitudeMax float32, longitudeMin float32, longitudeMax float32, depth uint) (string, *[]*Chunk, error) {
+func partition(lat float32, long float32, latMin float32, latMax float32, longMin float32, longMax float32, depth uint) (string, *[]*Chunk, error) {
 	buffer := strings.Builder{}
 	chunks := make([]*Chunk, depth)
 
 	var recurse func(float32, float32, float32, float32, uint) error
-	recurse = func(latitudeMin float32, latitudeMax float32, longitudeMin float32, longitudeMax float32, depth uint) error {
+	recurse = func(latMin float32, latMax float32, longMin float32, longMax float32, depth uint) error {
 		// Base case
 		if depth <= 0 {
 			return nil
 		}
 
-		if latitude < latitudeMin || latitude > latitudeMax || longitude < longitudeMin || longitude > longitudeMax {
+		if lat < latMin || lat > latMax || long < longMin || long > longMax {
 			return errors.New("out of bounds")
 		}
 
 		// Recursive partitioning latitude
-		midLat := (latitudeMin + latitudeMax) / 2
+		midLat := (latMin + latMax) / 2
 
 		y := 0
 		var newLatMin float32
 		var newLatMax float32
 
-		if latitude < midLat {
-			newLatMin = latitudeMin
+		if lat < midLat {
+			newLatMin = latMin
 			newLatMax = midLat
 		} else {
 			y = 1
 			newLatMin = midLat
-			newLatMax = latitudeMax
+			newLatMax = latMax
 		}
 
 		// Recursive partitioning longitude
-		midLong := (longitudeMin + longitudeMax) / 2
+		midLong := (longMin + longMax) / 2
 
 		x := 0
 		var newLongMin float32
 		var newLongMax float32
 
-		if longitude < midLong {
-			newLongMin = longitudeMin
+		if long < midLong {
+			newLongMin = longMin
 			newLongMax = midLong
 		} else {
 			x = 1
 			newLongMin = midLong
-			newLongMax = longitudeMax
+			newLongMax = longMax
 		}
 
 		// Write the data
 		depth -= 1
 		chunks[depth] = &Chunk{y: y, x: x}
 
-		if _, err := buffer.WriteString(fmt.Sprint(y, "", x)); err != nil {
+		if _, err := buffer.WriteString(fmt.Sprint(2*y + x)); err != nil {
 			return err
 		}
 
 		return recurse(newLatMin, newLatMax, newLongMin, newLongMax, depth)
 	}
 
-	if err := recurse(latitudeMin, latitudeMax, longitudeMin, longitudeMax, depth); err != nil {
+	if err := recurse(latMin, latMax, longMin, longMax, depth); err != nil {
 		return "", nil, err
 	}
 
@@ -104,8 +104,8 @@ func partition(latitude float32, longitude float32, latitudeMin float32, latitud
 }
 
 // Create a new partition from a latitude and longitude
-func NewPartitionFromCoords(latitude float32, longitude float32) (*Partition, error) {
-	encoded, chunks, err := partition(latitude, longitude, LatitudeMin, LatitudeMax, LongitudeMin, LongitudeMax, PartitionDepth)
+func NewPartitionFromCoords(lat float32, long float32) (*Partition, error) {
+	encoded, chunks, err := partition(lat, long, LatMin, LatMax, LongMin, LongMax, PartitionDepth)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func NewPartitonFromChunks(chunks *[]*Chunk) (*Partition, error) {
 	for i := len(*chunks) - 1; i >= 0; i-- {
 		chunk := (*chunks)[i]
 
-		if _, err := buffer.WriteString(fmt.Sprint(chunk.y, "", chunk.x)); err != nil {
+		if _, err := buffer.WriteString(fmt.Sprint(2*chunk.y + chunk.x)); err != nil {
 			return nil, err
 		}
 	}
@@ -205,13 +205,13 @@ func translate(partition *Partition, direction Direction) (*Partition, error) {
 	return newPartition, nil
 }
 
-type Node struct {
+type QueueNode struct {
 	remaining uint
 	partition *Partition
 }
 
 // Add a new partition
-func addPartition(node *Node, queue *list.List, seen *map[string]bool, out *[]*Partition, direction Direction) error {
+func addPartition(node *QueueNode, queue *list.List, seen *map[string]bool, out *[]*Partition, direction Direction) error {
 	partition, err := translate(node.partition, direction)
 	if err != nil {
 		return err
@@ -229,7 +229,7 @@ func addPartition(node *Node, queue *list.List, seen *map[string]bool, out *[]*P
 	remaining := node.remaining - 1
 
 	if remaining > 0 {
-		queue.PushBack(&Node{remaining: remaining, partition: partition})
+		queue.PushBack(&QueueNode{remaining: remaining, partition: partition})
 	}
 
 	return nil
@@ -239,14 +239,14 @@ func addPartition(node *Node, queue *list.List, seen *map[string]bool, out *[]*P
 func (p *Partition) Surrounding(radius uint) (*[]*Partition, error) {
 	seen := make(map[string]bool)
 	queue := list.New()
-	queue.PushBack(&Node{remaining: radius, partition: p})
+	queue.PushBack(&QueueNode{remaining: radius, partition: p})
 
 	out := make([]*Partition, 0)
 
 	// BFS for surrounding partitons
 	for queue.Len() > 0 {
 		current := queue.Front()
-		node := current.Value.(*Node)
+		node := current.Value.(*QueueNode)
 		queue.Remove(current)
 
 		// Create new surrounding partitions
@@ -265,23 +265,4 @@ func (p *Partition) Surrounding(radius uint) (*[]*Partition, error) {
 	}
 
 	return &out, nil
-}
-
-func Test(p *Partition) {
-	fmt.Println(p)
-
-	second, err := NewPartitonFromChunks(p.chunks)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(second)
-	}
-
-	out, err := translate(p, DirUp)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(out)
-	}
-
 }

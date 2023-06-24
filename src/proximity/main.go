@@ -7,23 +7,27 @@ import (
 )
 
 func main() {
-	var longitude float32 = -60.0
-	var latitude float32 = 20.0
+	var lat float32 = 20.0
+	var long float32 = -60.0
+	user1 := "test123"
+	user2 := "test456"
 
-	partition, err := utils.NewPartitionFromCoords(latitude, longitude)
+	location := utils.NewLocation()
+
+	if err := location.Upsert(user1, lat, long); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	if err := location.Upsert(user2, lat, long); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	out, err := location.Nearby(user1, 2)
 	if err != nil {
 		fmt.Println(err)
 	} else {
-		fmt.Println(partition)
+		fmt.Println(out)
 	}
-
-	out, err := partition.Surrounding(1)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(out, len(*out))
-	}
-
-	// utils.Test(partition)
-
 }
