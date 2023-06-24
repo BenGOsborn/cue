@@ -19,7 +19,8 @@ type Partition struct {
 
 // Depth of the partitioning e.g. the size of each partition
 const (
-	PartitionDepth = 10
+	// PartitionDepth = 10
+	PartitionDepth = 3
 	LatitudeMin    = -90
 	LatitudeMax    = 90
 	LongitudeMin   = -180
@@ -124,7 +125,9 @@ func NewPartitionFromCoords(latitude float32, longitude float32) (*Partition, er
 func NewPartitonFromChunks(chunks *[]*Chunk) (*Partition, error) {
 	buffer := strings.Builder{}
 
-	for _, chunk := range *chunks {
+	for i := len(*chunks) - 1; i >= 0; i-- {
+		chunk := (*chunks)[i]
+
 		if _, err := buffer.WriteString(fmt.Sprint(chunk.y)); err != nil {
 			return nil, err
 		}
@@ -184,8 +187,14 @@ func translate(partition *Partition, direction Direction) (*Partition, error) {
 			newY = 0
 		} else if newY < 0 {
 			newY = 1
-		} else {
+		} else if remainderY == 1 {
 			remainderY = 0
+
+			if newY == 0 {
+				newY = 1
+			} else {
+				newY = 0
+			}
 		}
 
 		newX := chunk.x + remainderX
@@ -193,8 +202,14 @@ func translate(partition *Partition, direction Direction) (*Partition, error) {
 			newX = 0
 		} else if newX < 0 {
 			newX = 1
-		} else {
+		} else if remainderX == 1 {
 			remainderX = 0
+
+			if newX == 0 {
+				newX = 1
+			} else {
+				newX = 0
+			}
 		}
 
 		newChunks[i] = &Chunk{x: newX, y: newY}
@@ -213,11 +228,38 @@ type Node struct {
 	partition *Partition
 }
 
+// Add a new partition
+func addPartition(node *Node, queue *list.List, seen *map[string]bool, out *[]*Partition, direction Direction) error {
+	partition, err := translate(node.partition, direction)
+	if err != nil {
+		return err
+	}
+
+	// No duplicates
+	if _, ok := (*seen)[partition.encoded]; ok {
+		return nil
+	}
+	(*seen)[partition.encoded] = true
+
+	*out = append(*out, partition)
+
+	// Add to queue
+	remaining := node.remaining - 1
+
+	if remaining > 0 {
+		queue.PushBack(&Node{remaining: remaining, partition: partition})
+	}
+
+	return nil
+}
+
 // Find all surrounding partitions within a given radius
-func (p *Partition) Surrounding(radius uint) error {
+func (p *Partition) Surrounding(radius uint) (*[]*Partition, error) {
 	seen := make(map[string]bool)
 	queue := list.New()
 	queue.PushBack(&Node{remaining: radius, partition: p})
+
+	out := make([]*Partition, 0)
 
 	// BFS for surrounding partitons
 	for queue.Len() > 0 {
@@ -225,41 +267,39 @@ func (p *Partition) Surrounding(radius uint) error {
 		node := current.Value.(*Node)
 		queue.Remove(current)
 
-		if _, ok := seen[node.partition.encoded]; ok || node.remaining == 0 {
-			continue
+		// Create new surrounding partitions
+		if err := addPartition(node, queue, &seen, &out, DirUp); err != nil {
+			return nil, err
 		}
-		seen[node.partition.encoded] = true
-
-		// Create new partitions
-		{
-			partition, err := translate(node.partition, DirUp)
-			if err != nil {
-				return err
-			}
-			queue.PushBack(&Node{remaining: node.remaining - 1, partition: partition})
+		if err := addPartition(node, queue, &seen, &out, DirDown); err != nil {
+			return nil, err
 		}
-		{
-			partition, err := translate(node.partition, DirDown)
-			if err != nil {
-				return err
-			}
-			queue.PushBack(&Node{remaining: node.remaining - 1, partition: partition})
+		if err := addPartition(node, queue, &seen, &out, DirLeft); err != nil {
+			return nil, err
 		}
-		{
-			partition, err := translate(node.partition, DirLeft)
-			if err != nil {
-				return err
-			}
-			queue.PushBack(&Node{remaining: node.remaining - 1, partition: partition})
-		}
-		{
-			partition, err := translate(node.partition, DirRight)
-			if err != nil {
-				return err
-			}
-			queue.PushBack(&Node{remaining: node.remaining - 1, partition: partition})
+		if err := addPartition(node, queue, &seen, &out, DirRight); err != nil {
+			return nil, err
 		}
 	}
 
-	return nil
+	return &out, nil
+}
+
+func Test(p *Partition) {
+	fmt.Println(p)
+
+	second, err := NewPartitonFromChunks(p.chunks)
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println(second)
+	}
+
+	out, err := translate(p, DirUp)
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println(out)
+	}
+
 }
