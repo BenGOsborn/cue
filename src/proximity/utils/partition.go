@@ -179,36 +179,34 @@ func translate(partition *Partition, direction Direction) (*Partition, error) {
 	chunks := partition.chunks
 	newChunks := make([]*Chunk, len(*chunks))
 
-	for i := len(*chunks) - 1; i >= 0; i-- {
-		chunk := (*chunks)[i]
-
-		newY := chunk.y + remainderY
-		if newY > 1 {
-			newY = 0
-		} else if newY < 0 {
-			newY = 1
-		} else if remainderY == 1 {
-			remainderY = 0
+	for i, chunk := range *chunks {
+		newY := chunk.y
+		if remainderY != 0 {
+			temp := newY + remainderY
 
 			if newY == 0 {
 				newY = 1
 			} else {
 				newY = 0
 			}
+
+			if temp == 0 || temp == 1 {
+				remainderY = 0
+			}
 		}
 
-		newX := chunk.x + remainderX
-		if newX > 1 {
-			newX = 0
-		} else if newX < 0 {
-			newX = 1
-		} else if remainderX == 1 {
-			remainderX = 0
+		newX := chunk.x
+		if remainderX != 0 {
+			temp := newX + remainderX
 
 			if newX == 0 {
 				newX = 1
 			} else {
 				newX = 0
+			}
+
+			if temp == 0 || temp == 1 {
+				remainderX = 0
 			}
 		}
 
