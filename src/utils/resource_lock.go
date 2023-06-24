@@ -12,82 +12,44 @@ import (
 )
 
 type ResourceLock struct {
-	mutex map[string]*sync.RWMutex
-	lock  sync.Mutex
+	mutex sync.Map
 }
-
-// **** Rewrite using sync.map...
 
 // Create a new resource lock
 func NewResourceLock() *ResourceLock {
-	return &ResourceLock{mutex: make(map[string]*sync.RWMutex), lock: sync.Mutex{}}
+	return &ResourceLock{mutex: sync.Map{}}
 }
 
 // Lock the mutex for reading
-func (r *ResourceLock) LockRead(id string) error {
-	r.lock.Lock()
-
-	lock, ok := r.mutex[id]
-	if !ok {
-		lock = &sync.RWMutex{}
-		r.mutex[id] = lock
-	}
-
-	r.lock.Unlock()
-
-	lock.RLock()
-
-	return nil
+func (r *ResourceLock) LockRead(id string) {
+	lock, _ := r.mutex.LoadOrStore(id, &sync.RWMutex{})
+	lock.(*sync.RWMutex).RLock()
 }
 
 // Unlock the mutex for reading
 func (r *ResourceLock) UnlockRead(id string) error {
-	r.lock.Lock()
-
-	lock, ok := r.mutex[id]
-
-	r.lock.Unlock()
-
+	value, ok := r.mutex.Load(id)
 	if !ok {
 		return errors.New("no lock with this id exists")
 	}
-
-	lock.RUnlock()
+	value.(*sync.RWMutex).RUnlock()
 
 	return nil
 }
 
 // Lock the mutex for writing
-func (r *ResourceLock) LockWrite(id string) error {
-	r.lock.Lock()
-
-	lock, ok := r.mutex[id]
-
-	if !ok {
-		lock = &sync.RWMutex{}
-		r.mutex[id] = lock
-	}
-
-	r.lock.Unlock()
-
-	lock.Lock()
-
-	return nil
+func (r *ResourceLock) LockWrite(id string) {
+	lock, _ := r.mutex.LoadOrStore(id, &sync.RWMutex{})
+	lock.(*sync.RWMutex).Lock()
 }
 
 // Unlock the mutex for writing
 func (r *ResourceLock) UnlockWrite(id string) error {
-	r.lock.Lock()
-
-	lock, ok := r.mutex[id]
-
-	r.lock.Unlock()
-
+	value, ok := r.mutex.Load(id)
 	if !ok {
 		return errors.New("no lock with this id exists")
 	}
-
-	lock.Unlock()
+	value.(*sync.RWMutex).Unlock()
 
 	return nil
 }
