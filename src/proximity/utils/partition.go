@@ -56,7 +56,7 @@ func partition(latitude float32, longitude float32, latitudeMin float32, latitud
 		// Recursive partitioning latitude
 		midLat := (latitudeMin + latitudeMax) / 2
 
-		down := 0
+		y := 0
 		var newLatMin float32
 		var newLatMax float32
 
@@ -64,7 +64,7 @@ func partition(latitude float32, longitude float32, latitudeMin float32, latitud
 			newLatMin = latitudeMin
 			newLatMax = midLat
 		} else {
-			down = 1
+			y = 1
 			newLatMin = midLat
 			newLatMax = latitudeMax
 		}
@@ -72,7 +72,7 @@ func partition(latitude float32, longitude float32, latitudeMin float32, latitud
 		// Recursive partitioning longitude
 		midLong := (longitudeMin + longitudeMax) / 2
 
-		right := 0
+		x := 0
 		var newLongMin float32
 		var newLongMax float32
 
@@ -80,24 +80,16 @@ func partition(latitude float32, longitude float32, latitudeMin float32, latitud
 			newLongMin = longitudeMin
 			newLongMax = midLong
 		} else {
-			right = 1
+			x = 1
 			newLongMin = midLong
 			newLongMax = longitudeMax
 		}
 
 		// Write the data
 		depth -= 1
-		chunks[depth] = &Chunk{y: down, x: right}
+		chunks[depth] = &Chunk{y: y, x: x}
 
-		if _, err := buffer.WriteString(fmt.Sprint(down)); err != nil {
-			return err
-		}
-
-		if _, err := buffer.WriteString(fmt.Sprint(right)); err != nil {
-			return err
-		}
-
-		if _, err := buffer.WriteString(" "); err != nil {
+		if _, err := buffer.WriteString(fmt.Sprint(y, "", x)); err != nil {
 			return err
 		}
 
@@ -128,15 +120,7 @@ func NewPartitonFromChunks(chunks *[]*Chunk) (*Partition, error) {
 	for i := len(*chunks) - 1; i >= 0; i-- {
 		chunk := (*chunks)[i]
 
-		if _, err := buffer.WriteString(fmt.Sprint(chunk.y)); err != nil {
-			return nil, err
-		}
-
-		if _, err := buffer.WriteString(fmt.Sprint(chunk.x)); err != nil {
-			return nil, err
-		}
-
-		if _, err := buffer.WriteString(" "); err != nil {
+		if _, err := buffer.WriteString(fmt.Sprint(chunk.y, "", chunk.x)); err != nil {
 			return nil, err
 		}
 	}
