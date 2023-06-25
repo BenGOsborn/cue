@@ -151,6 +151,9 @@ func (l *Location) Sync() error {
 		// **** The easiest way to do this is to add all of the new data to the local data and then filter out the local data
 		// Then at the end, do the same thing to the users list
 
+		// **** To avoid O(n^2) complexity, we will have a recorded event log a we go where we will record incremental changes and update the list with them.
+		// Then, we will lazily remove elements such as when we visit a user and they have not pinged in the timeout period.
+
 	} else if err != redis.Nil {
 		return err
 	}
