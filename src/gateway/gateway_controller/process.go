@@ -11,7 +11,7 @@ import (
 )
 
 // Process messages from broker
-func Process(connections *gwUtils.Connections, broker utils.Broker, lock *utils.ResourceLockDistributed, logger *log.Logger) {
+func ProcessMessages(connections *gwUtils.Connections, broker utils.Broker, lock *utils.ResourceLockDistributed, logger *log.Logger) {
 	if err := broker.Listen(func(msg *utils.BrokerMessage) bool {
 		if ok, err := connections.Apply(msg.Receiver, func(_ string, conn *websocket.Conn) error {
 			data, err := json.Marshal(msg)
@@ -24,14 +24,14 @@ func Process(connections *gwUtils.Connections, broker utils.Broker, lock *utils.
 				return err
 			}
 
-			logger.Println("process.success: sent message to connection")
+			logger.Println("processmessages.success: sent message to connection")
 
 			return nil
 		}); !ok || err != nil {
 			if !ok {
-				logger.Println("process.error: id does not exist")
+				logger.Println("processmessages.error: id does not exist")
 			} else {
-				logger.Println(fmt.Sprint("process.error: ", err))
+				logger.Println(fmt.Sprint("processmessages.error: ", err))
 			}
 
 			return false
@@ -39,6 +39,6 @@ func Process(connections *gwUtils.Connections, broker utils.Broker, lock *utils.
 
 		return true
 	}, lock); err != nil {
-		logger.Fatalln(fmt.Sprint("process.error: ", err))
+		logger.Fatalln(fmt.Sprint("processmessages.error: ", err))
 	}
 }

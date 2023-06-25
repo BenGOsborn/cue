@@ -8,7 +8,7 @@ import (
 )
 
 // Routing logic for all broker messages
-func Process(broker utils.Broker, lock *utils.ResourceLockDistributed, logger *log.Logger) {
+func ProcessMessages(broker utils.Broker, lock *utils.ResourceLockDistributed, logger *log.Logger) {
 	if err := broker.Listen(func(msg *utils.BrokerMessage) bool {
 		switch msg.EventType {
 		case (utils.ProximitySendLocation):
@@ -25,6 +25,6 @@ func Process(broker utils.Broker, lock *utils.ResourceLockDistributed, logger *l
 		return true
 
 	}, lock); err != nil {
-		logger.Fatalln(fmt.Sprint("process.error: ", err))
+		logger.Fatalln(fmt.Sprint("processmessages.error: ", err))
 	}
 }

@@ -12,5 +12,5 @@ import (
 func Attach(server *http.ServeMux, path string, connections *gwUtils.Connections, broker utils.Broker, lock *utils.ResourceLockDistributed, logger *log.Logger, process func(string, *gwUtils.Message) error) {
 	server.HandleFunc(path, HandleWs(connections, logger, process))
 
-	go Process(connections, broker, lock, logger)
+	go ProcessMessages(connections, broker, lock, logger)
 }
