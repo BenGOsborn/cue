@@ -77,9 +77,7 @@ func (b *BrokerKafka) Listen(fn func(*BrokerMessage) bool, lock *ResourceLockDis
 
 		go func() {
 			if lock != nil {
-				if err := lock.Lock(msg.Id); err != nil {
-					return
-				}
+				lock.Lock(msg.Id)
 				defer lock.Unlock(msg.Id, false)
 
 				if processed, err := lock.IsProcessed(msg.Id); processed || err != nil {
@@ -129,9 +127,7 @@ func (b *BrokerRedis) Listen(fn func(*BrokerMessage) bool, lock *ResourceLockDis
 
 		go func() {
 			if lock != nil {
-				if err := lock.Lock(msg.Id); err != nil {
-					return
-				}
+				lock.Lock(msg.Id)
 				defer lock.Unlock(msg.Id, false)
 
 				if processed, err := lock.IsProcessed(msg.Id); processed || err != nil {
