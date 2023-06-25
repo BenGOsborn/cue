@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"container/list"
 	"context"
 	"encoding/json"
 	"errors"
@@ -17,13 +18,26 @@ type UserData struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
+type stackEvent int
+
+const (
+	eventUpsert stackEvent = iota
+	eventDelete
+)
+
+type stackNode struct {
+	event stackEvent
+	user  string
+}
+
 type Location struct {
-	ctx      context.Context                `json:"-"`
-	redis    *redis.Client                  `json:"-"`
-	lock     *utils.ResourceLockDistributed `json:"-"`
-	mutex    sync.RWMutex                   `json:"-"`
-	Location sync.Map                       `json:"location"` // partition encoded -> user -> user data
-	User     sync.Map                       `json:"user"`     // user -> partition
+	ctx        context.Context                `json:"-"`
+	redis      *redis.Client                  `json:"-"`
+	lock       *utils.ResourceLockDistributed `json:"-"`
+	mutex      sync.RWMutex                   `json:"-"`
+	Location   sync.Map                       `json:"location"`
+	User       sync.Map                       `json:"user"`
+	eventStack *list.List                     `json:"-"`
 }
 
 const (
@@ -39,26 +53,16 @@ const (
 // func NewLocation(ctx context.Context, redis *redis.Client, lock *utils.ResourceLockDistributed) *Location {
 func NewLocation() *Location {
 	// return &Location{location: sync.Map{}, user: sync.Map{}, mutex: sync.RWMutex{}, redis: redis, lock: lock}
-	return &Location{}
+	return &Location{eventStack: list.New()}
 }
 
 // Add a new user
-func (l *Location) Upsert(user string, lat float32, long float32) error {
+func (l *Location) upsert(user string, lat float32, long float32, timestamp time.Time) error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
 	// Remove the user from the previous partition if they already exist
-	value, ok := l.User.Load(user)
-	if ok {
-		prev := value.(*Partition)
-
-		value, ok := l.Location.Load(prev.Encoded)
-		if ok {
-			partitionUsers := value.(map[string]*UserData)
-
-			delete(partitionUsers, user)
-		}
-	}
+	l.remove(user)
 
 	// Add the user to the partition
 	partition, err := NewPartitionFromCoords(lat, long)
@@ -67,16 +71,29 @@ func (l *Location) Upsert(user string, lat float32, long float32) error {
 	}
 
 	l.User.Store(user, partition)
-	value, _ = l.Location.LoadOrStore(partition.Encoded, make(map[string]*UserData))
+	value, _ := l.Location.LoadOrStore(partition.Encoded, make(map[string]*UserData))
 	partitionUsers := value.(map[string]*UserData)
 
-	partitionUsers[user] = &UserData{Lat: lat, Long: long, Timestamp: time.Now()}
+	partitionUsers[user] = &UserData{Lat: lat, Long: long, Timestamp: timestamp}
+
+	return nil
+}
+
+// Public method for upsert which records event
+func (l *Location) Upsert(user string, lat float32, long float32) error {
+	timestamp := time.Now()
+
+	if err := l.upsert(user, lat, long, timestamp); err != nil {
+		return err
+	}
+
+	l.eventStack.PushFront(&stackNode{event: eventUpsert, user: user, timestamp: timestamp})
 
 	return nil
 }
 
 // Remove a user
-func (l *Location) Remove(user string) {
+func (l *Location) remove(user string) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
@@ -94,6 +111,32 @@ func (l *Location) Remove(user string) {
 			delete(partitionUsers, user)
 		}
 	}
+}
+
+// Public method for remove which records event
+func (l *Location) Remove(user string) {
+	l.remove(user)
+
+	l.eventStack.PushFront(&stackNode{event: eventDelete, user: user})
+}
+
+// Lookup a users data
+func (l *Location) Get(user string) (*UserData, bool) {
+	value, ok := l.User.Load(user)
+	if !ok {
+		return nil, false
+	}
+	userPartition := value.(*Partition)
+
+	value, ok = l.Location.Load(userPartition.Encoded)
+	if !ok {
+		panic("user exists but not within partition")
+	}
+	partitionUsers := value.(map[string]*UserData)
+
+	userData, ok := partitionUsers[user]
+
+	return userData, ok
 }
 
 // Get nearby users
@@ -147,12 +190,38 @@ func (l *Location) Sync() error {
 		json.Unmarshal([]byte(data), &staged)
 
 		// Compare the states and update the local state according to timestamps
+		seen := make(map[string]bool)
 
-		// **** The easiest way to do this is to add all of the new data to the local data and then filter out the local data
-		// Then at the end, do the same thing to the users list
+		for l.eventStack.Len() > 0 {
+			value := l.eventStack.Front()
+			event := value.Value.(*stackNode)
+			l.eventStack.Remove(value)
 
-		// **** To avoid O(n^2) complexity, we will have a recorded event log a we go where we will record incremental changes and update the list with them.
-		// Then, we will lazily remove elements such as when we visit a user and they have not pinged in the timeout period.
+			if _, ok := seen[event.user]; ok {
+				continue
+			}
+
+			// **** YIKES - we have gotten this all back to front - we actually need to push the changes from the REDIS state TO the local state, not the other way around
+
+			if event.event == eventDelete {
+				staged.remove(event.user)
+			} else if event.event == eventUpsert {
+				localUserData, ok := l.Get(event.user)
+				if !ok {
+					panic("user does not exist")
+				}
+
+				userData, ok := staged.Get(event.user)
+
+				if !ok || userData.Timestamp.Before(localUserData.Timestamp) {
+					staged.upsert(event.user, localUserData.Lat, localUserData.Long, localUserData.Timestamp)
+				}
+			} else {
+				panic("invalid event type")
+			}
+
+			seen[event.user] = true
+		}
 
 	} else if err != redis.Nil {
 		return err

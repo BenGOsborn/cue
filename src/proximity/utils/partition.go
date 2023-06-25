@@ -182,7 +182,7 @@ func (p *Partition) Translate(direction Direction) (*Partition, error) {
 		remainderY = 0
 		remainderX = -1
 	default:
-		return nil, errors.New("invalid direction")
+		panic("invalid direction")
 	}
 
 	chunks := p.Chunks
