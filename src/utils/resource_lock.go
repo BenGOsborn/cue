@@ -3,7 +3,6 @@ package utils
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -79,22 +78,18 @@ func NewResourceLockDistributed(ctx context.Context, redis *redis.Client, ttl ti
 		pubsub := redis.Subscribe(ctx, lockChannel)
 		ch := pubsub.Channel()
 
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case lockId := <-ch:
-				value, ok := r.cond.Load(lockId.Payload)
-				if !ok {
-					continue
-				}
-				cond := value.(*sync.Cond)
-
-				cond.L.Lock()
-				defer cond.L.Unlock()
-
-				cond.Broadcast()
+		for lockId := range ch {
+			value, ok := r.cond.Load(lockId.Payload)
+			if !ok {
+				continue
 			}
+			cond := value.(*sync.Cond)
+
+			cond.L.Lock()
+
+			cond.Broadcast()
+
+			cond.L.Unlock()
 		}
 	}()
 
@@ -117,8 +112,6 @@ func (r *ResourceLockDistributed) Lock(id string) {
 		}
 
 		r.lock.Store(id, redisLock)
-
-		fmt.Println("ACQUIRED LOCK")
 
 		return
 	}
@@ -151,8 +144,6 @@ func (r *ResourceLockDistributed) Unlock(id string, processed bool) error {
 
 	r.cond.Delete(id)
 	r.lock.Delete(id)
-
-	fmt.Println("RELEASED LOCK")
 
 	return nil
 }
