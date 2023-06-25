@@ -148,7 +148,8 @@ func (l *Location) Sync() error {
 
 		// Compare the states and update the local state according to timestamps
 
-		// **** This includes looking at the existing partition and user data (what users are in and which users are out)
+		// **** The easiest way to do this is to add all of the new data to the local data and then filter out the local data
+		// Then at the end, do the same thing to the users list
 
 	} else if err != redis.Nil {
 		return err
