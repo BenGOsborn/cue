@@ -64,8 +64,8 @@ type ResourceLockDistributed struct {
 }
 
 const (
-	resourcePrefix = "resource"
-	lockChannel    = "lock-channel"
+	resourcePrefix      = "resource:prefix"
+	resourceLockChannel = "resource:lock-channel"
 )
 
 // Create a new distributed resource lock
@@ -75,7 +75,7 @@ func NewResourceLockDistributed(ctx context.Context, redis *redis.Client, ttl ti
 	r := &ResourceLockDistributed{ctx: ctx, redisClient: redis, redisLockClient: redisLockClient, lock: sync.Map{}, ttl: ttl, cond: sync.Map{}}
 
 	go func() {
-		pubsub := redis.Subscribe(ctx, lockChannel)
+		pubsub := redis.Subscribe(ctx, resourceLockChannel)
 		ch := pubsub.Channel()
 
 		for lockId := range ch {
@@ -140,7 +140,7 @@ func (r *ResourceLockDistributed) Unlock(id string, processed bool) error {
 	if err := redisLock.Release(r.ctx); err != nil {
 		return err
 	}
-	r.redisClient.Publish(r.ctx, lockChannel, id)
+	r.redisClient.Publish(r.ctx, resourceLockChannel, id)
 
 	r.cond.Delete(id)
 	r.lock.Delete(id)

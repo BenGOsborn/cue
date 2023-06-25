@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 	"time"
@@ -10,21 +12,23 @@ import (
 )
 
 type UserData struct {
-	lat       float32
-	long      float32
-	timestamp time.Time
+	Lat       float32   `json:"lat"`
+	Long      float32   `json:"long"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 type Location struct {
-	redis    *redis.Client
-	lock     *utils.ResourceLockDistributed
-	mutex    sync.RWMutex
-	location sync.Map // partition encoded -> user -> user data
-	user     sync.Map // user -> partition
+	ctx      context.Context                `json:"-"`
+	redis    *redis.Client                  `json:"-"`
+	lock     *utils.ResourceLockDistributed `json:"-"`
+	mutex    sync.RWMutex                   `json:"-"`
+	Location sync.Map                       `json:"location"` // partition encoded -> user -> user data
+	User     sync.Map                       `json:"user"`     // user -> partition
 }
 
 const (
-	timeout = 5 * time.Minute
+	timeout  = 5 * time.Minute
+	stateKey = "location:stage"
 )
 
 // **** I need to use this with a distributed lock and redis...
@@ -39,16 +43,16 @@ func NewLocation() *Location {
 }
 
 // Add a new user
-func (u *Location) Upsert(user string, lat float32, long float32) error {
-	u.mutex.Lock()
-	defer u.mutex.Unlock()
+func (l *Location) Upsert(user string, lat float32, long float32) error {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
 
 	// Remove the user from the previous partition if they already exist
-	value, ok := u.user.Load(user)
+	value, ok := l.User.Load(user)
 	if ok {
 		prev := value.(*Partition)
 
-		value, ok := u.location.Load(prev.encoded)
+		value, ok := l.Location.Load(prev.Encoded)
 		if ok {
 			partitionUsers := value.(map[string]*UserData)
 
@@ -62,28 +66,28 @@ func (u *Location) Upsert(user string, lat float32, long float32) error {
 		return err
 	}
 
-	u.user.Store(user, partition)
-	value, _ = u.location.LoadOrStore(partition.encoded, make(map[string]*UserData))
+	l.User.Store(user, partition)
+	value, _ = l.Location.LoadOrStore(partition.Encoded, make(map[string]*UserData))
 	partitionUsers := value.(map[string]*UserData)
 
-	partitionUsers[user] = &UserData{lat: lat, long: long, timestamp: time.Now()}
+	partitionUsers[user] = &UserData{Lat: lat, Long: long, Timestamp: time.Now()}
 
 	return nil
 }
 
 // Remove a user
-func (u *Location) Remove(user string) {
-	u.mutex.Lock()
-	defer u.mutex.Unlock()
+func (l *Location) Remove(user string) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
 
 	// Remove user
-	u.user.Delete(user)
+	l.User.Delete(user)
 
-	value, ok := u.user.Load(user)
+	value, ok := l.User.Load(user)
 	if ok {
 		prev := value.(*Partition)
 
-		value, ok := u.location.Load(prev.encoded)
+		value, ok := l.Location.Load(prev.Encoded)
 		if ok {
 			partitionUsers := value.(map[string]*UserData)
 
@@ -93,12 +97,12 @@ func (u *Location) Remove(user string) {
 }
 
 // Get nearby users
-func (u *Location) Nearby(user string, radius int) ([]string, error) {
-	u.mutex.RLock()
-	defer u.mutex.RUnlock()
+func (l *Location) Nearby(user string, radius int) ([]string, error) {
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
 
 	// Get the partition for the user
-	value, ok := u.user.Load(user)
+	value, ok := l.User.Load(user)
 	if !ok {
 		return nil, errors.New("user does not exist")
 	}
@@ -112,18 +116,50 @@ func (u *Location) Nearby(user string, radius int) ([]string, error) {
 
 	users := make([]string, 0)
 	for _, partition := range *partitions {
-		value, ok := u.location.Load(partition.encoded)
+		value, ok := l.Location.Load(partition.Encoded)
 		if !ok {
 			continue
 		}
 		partitionUsers := value.(map[string]*UserData)
 
 		for usr, usrData := range partitionUsers {
-			if usr != user && time.Now().Before(usrData.timestamp.Add(timeout)) {
+			if usr != user && time.Now().Before(usrData.Timestamp.Add(timeout)) {
 				users = append(users, usr)
 			}
 		}
 	}
 
 	return users, nil
+}
+
+// Sync local changes
+func (l *Location) Sync() error {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
+	l.lock.Lock(stateKey)
+	defer l.lock.Unlock(stateKey, false)
+
+	// Pull data from redis into the local changes
+	data, err := l.redis.Get(l.ctx, stateKey).Result()
+	if err == nil {
+		staged := Location{}
+		json.Unmarshal([]byte(data), &staged)
+
+		// Compare the states and update the local state according to timestamps
+
+		// **** This includes looking at the existing partition and user data (what users are in and which users are out)
+
+	} else if err != redis.Nil {
+		return err
+	}
+
+	// Push changes locally to redis
+	locationData, err := json.Marshal(l)
+	if err != nil {
+		return err
+	}
+	l.redis.Set(l.ctx, stateKey, locationData, 0)
+
+	return nil
 }

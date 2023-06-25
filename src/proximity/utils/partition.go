@@ -8,13 +8,13 @@ import (
 )
 
 type Chunk struct {
-	y int
-	x int
+	Y int `json:"y"`
+	X int `json:"x"`
 }
 
 type Partition struct {
-	encoded string
-	chunks  *[]*Chunk
+	Encoded string    `json:"encoded"`
+	Chunks  *[]*Chunk `json:"chunks"`
 }
 
 // Depth of the partitioning e.g. the size of each partition
@@ -86,7 +86,7 @@ func partition(lat float32, long float32, latMin float32, latMax float32, longMi
 
 		// Write the data
 		depth -= 1
-		chunks[depth] = &Chunk{y: y, x: x}
+		chunks[depth] = &Chunk{Y: y, X: x}
 
 		if _, err := buffer.WriteString(fmt.Sprint(2*y + x)); err != nil {
 			return err
@@ -109,7 +109,7 @@ func NewPartitionFromCoords(lat float32, long float32) (*Partition, error) {
 		return nil, err
 	}
 
-	return &Partition{encoded: encoded, chunks: chunks}, nil
+	return &Partition{Encoded: encoded, Chunks: chunks}, nil
 }
 
 // Create a new partition from chunks
@@ -119,12 +119,12 @@ func NewPartitonFromChunks(chunks *[]*Chunk) (*Partition, error) {
 	for i := len(*chunks) - 1; i >= 0; i-- {
 		chunk := (*chunks)[i]
 
-		if _, err := buffer.WriteString(fmt.Sprint(2*chunk.y + chunk.x)); err != nil {
+		if _, err := buffer.WriteString(fmt.Sprint(2*chunk.Y + chunk.X)); err != nil {
 			return nil, err
 		}
 	}
 
-	return &Partition{chunks: chunks, encoded: buffer.String()}, nil
+	return &Partition{Chunks: chunks, Encoded: buffer.String()}, nil
 }
 
 // Create a new partition from a encoded string
@@ -136,13 +136,13 @@ func NewPartitionFromEncoded(encoded string) (*Partition, error) {
 
 		switch string(char) {
 		case "0":
-			chunk = Chunk{x: 0, y: 0}
+			chunk = Chunk{X: 0, Y: 0}
 		case "1":
-			chunk = Chunk{x: 1, y: 0}
+			chunk = Chunk{X: 1, Y: 0}
 		case "2":
-			chunk = Chunk{x: 0, y: 1}
+			chunk = Chunk{X: 0, Y: 1}
 		case "3":
-			chunk = Chunk{x: 1, y: 1}
+			chunk = Chunk{X: 1, Y: 1}
 		default:
 			return nil, errors.New("invalid string character")
 		}
@@ -150,17 +150,17 @@ func NewPartitionFromEncoded(encoded string) (*Partition, error) {
 		chunks[len(encoded)-i-1] = &chunk
 	}
 
-	return &Partition{encoded: encoded, chunks: &chunks}, nil
+	return &Partition{Encoded: encoded, Chunks: &chunks}, nil
 }
 
 // Format the partition
 func (p *Partition) String() string {
-	return p.encoded
+	return p.Encoded
 }
 
 // Check if one partition contains another
 func (p *Partition) Contains(partition *Partition) bool {
-	return strings.Contains(partition.encoded, p.encoded)
+	return strings.Contains(partition.Encoded, p.Encoded)
 }
 
 // Translate a partition string in some direction
@@ -185,11 +185,11 @@ func (p *Partition) Translate(direction Direction) (*Partition, error) {
 		return nil, errors.New("invalid direction")
 	}
 
-	chunks := p.chunks
+	chunks := p.Chunks
 	newChunks := make([]*Chunk, len(*chunks))
 
 	for i, chunk := range *chunks {
-		newY := chunk.y
+		newY := chunk.Y
 		if remainderY != 0 {
 			temp := newY + remainderY
 
@@ -204,7 +204,7 @@ func (p *Partition) Translate(direction Direction) (*Partition, error) {
 			}
 		}
 
-		newX := chunk.x
+		newX := chunk.X
 		if remainderX != 0 {
 			temp := newX + remainderX
 
@@ -219,7 +219,7 @@ func (p *Partition) Translate(direction Direction) (*Partition, error) {
 			}
 		}
 
-		newChunks[i] = &Chunk{x: newX, y: newY}
+		newChunks[i] = &Chunk{X: newX, Y: newY}
 	}
 
 	newPartition, err := NewPartitonFromChunks(&newChunks)
@@ -250,10 +250,10 @@ func (p *Partition) Nearby(radius int) (*[]*Partition, error) {
 		queue.Remove(current)
 
 		// No duplicates
-		if _, ok := seen[node.partition.encoded]; ok {
+		if _, ok := seen[node.partition.Encoded]; ok {
 			continue
 		}
-		seen[node.partition.encoded] = true
+		seen[node.partition.Encoded] = true
 
 		out = append(out, node.partition)
 
