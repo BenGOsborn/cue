@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"context"
 	"sync"
 	"time"
 
@@ -32,8 +31,10 @@ const (
 // 2. When writing, we will have a method to sync the local data with what is in the redis database, where it will only update the partition with the latest timestamp
 
 // Make a new location structure
-func NewLocation(ctx context.Context, redis *redis.Client, lock *utils.ResourceLockDistributed) *Location {
-	return &Location{location: sync.Map{}, user: sync.Map{}, mutex: sync.RWMutex{}, redis: redis, lock: lock}
+// func NewLocation(ctx context.Context, redis *redis.Client, lock *utils.ResourceLockDistributed) *Location {
+func NewLocation() *Location {
+	// return &Location{location: sync.Map{}, user: sync.Map{}, mutex: sync.RWMutex{}, redis: redis, lock: lock}
+	return &Location{}
 }
 
 // Add a new user
@@ -41,12 +42,17 @@ func (u *Location) Upsert(user string, lat float32, long float32) error {
 	u.mutex.Lock()
 	defer u.mutex.Unlock()
 
-	// **** We do know that the partition will indeed be a single map -> do something with this information
-
 	// Remove the user from the previous partition if they already exist
-	prev, ok := u.user[user]
+	value, ok := u.user.Load(user)
 	if ok {
-		delete(u.location[prev.encoded], user)
+		prev := value.(*Partition)
+
+		value, ok := u.location.Load(prev.encoded)
+		if ok {
+			partitionUsers := value.(map[string]*UserData)
+
+			delete(partitionUsers, user)
+		}
 	}
 
 	// Add the user to the partition
@@ -55,31 +61,35 @@ func (u *Location) Upsert(user string, lat float32, long float32) error {
 		return err
 	}
 
-	u.user[user] = partition
-	if _, ok := u.location[partition.encoded]; !ok {
-		u.location[partition.encoded] = make(map[string]*UserData)
-	}
-	u.location[partition.encoded][user] = &UserData{lat: lat, long: long, timestamp: time.Now()}
+	u.user.Store(user, partition)
+	value, _ = u.location.LoadOrStore(partition.encoded, make(map[string]*UserData))
+	partitionUsers := value.(map[string]*UserData)
+
+	partitionUsers[user] = &UserData{lat: lat, long: long, timestamp: time.Now()}
 
 	return nil
 }
 
-// // Remove a user
-// func (u *Location) Remove(user string) error {
-// 	u.mutex.Lock()
-// 	defer u.mutex.Unlock()
+// Remove a user
+func (u *Location) Remove(user string) {
+	u.mutex.Lock()
+	defer u.mutex.Unlock()
 
-// 	// Remove user
-// 	prev, ok := u.user[user]
-// 	if !ok {
-// 		return errors.New("user does not exist")
-// 	}
+	// Remove user
+	u.user.Delete(user)
 
-// 	delete(u.user, user)
-// 	delete(u.location[prev.encoded], user)
+	value, ok := u.user.Load(user)
+	if ok {
+		prev := value.(*Partition)
 
-// 	return nil
-// }
+		value, ok := u.location.Load(prev.encoded)
+		if ok {
+			partitionUsers := value.(map[string]*UserData)
+
+			delete(partitionUsers, user)
+		}
+	}
+}
 
 // // Get nearby users
 // func (u *Location) Nearby(user string, radius int) ([]string, error) {

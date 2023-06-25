@@ -24,17 +24,19 @@ func main() {
 		return
 	}
 
-	out, err := location.Nearby(user1, 0)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(out)
-	}
+	location.Remove(user2)
 
-	partition, err := utils.NewPartitionFromEncoded("21212")
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(partition)
-	}
+	// out, err := location.Nearby(user1, 0)
+	// if err != nil {
+	// 	fmt.Println(err)
+	// } else {
+	// 	fmt.Println(out)
+	// }
+
+	// partition, err := utils.NewPartitionFromEncoded("21212")
+	// if err != nil {
+	// 	fmt.Println(err)
+	// } else {
+	// 	fmt.Println(partition)
+	// }
 }
