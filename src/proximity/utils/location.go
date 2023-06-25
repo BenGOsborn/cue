@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -91,31 +92,38 @@ func (u *Location) Remove(user string) {
 	}
 }
 
-// // Get nearby users
-// func (u *Location) Nearby(user string, radius int) ([]string, error) {
-// 	u.mutex.RLock()
-// 	defer u.mutex.RUnlock()
+// Get nearby users
+func (u *Location) Nearby(user string, radius int) ([]string, error) {
+	u.mutex.RLock()
+	defer u.mutex.RUnlock()
 
-// 	// Get the partition for the user
-// 	userPartition, ok := u.user[user]
-// 	if !ok {
-// 		return nil, errors.New("user does not exist")
-// 	}
+	// Get the partition for the user
+	value, ok := u.user.Load(user)
+	if !ok {
+		return nil, errors.New("user does not exist")
+	}
+	userPartition := value.(*Partition)
 
-// 	// Get the nearby partitions and find all users
-// 	partitions, err := userPartition.Nearby(radius)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	// Get the nearby partitions and find all users
+	partitions, err := userPartition.Nearby(radius)
+	if err != nil {
+		return nil, err
+	}
 
-// 	users := make([]string, 0)
-// 	for _, partition := range *partitions {
-// 		for usr := range u.location[partition.encoded] {
-// 			if usr != user {
-// 				users = append(users, usr)
-// 			}
-// 		}
-// 	}
+	users := make([]string, 0)
+	for _, partition := range *partitions {
+		value, ok := u.location.Load(partition.encoded)
+		if !ok {
+			continue
+		}
+		partitionUsers := value.(map[string]*UserData)
 
-// 	return users, nil
-// }
+		for usr, usrData := range partitionUsers {
+			if usr != user && time.Now().Before(usrData.timestamp.Add(timeout)) {
+				users = append(users, usr)
+			}
+		}
+	}
+
+	return users, nil
+}
