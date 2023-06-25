@@ -55,11 +55,11 @@ func (r *ResourceLock) UnlockWrite(id string) error {
 }
 
 type ResourceLockDistributed struct {
-	mutex           sync.Mutex
 	redisClient     *redis.Client
 	redisLockClient *redislock.Client
-	lock            map[string]*redislock.Lock
+	lock            sync.Map
 	ctx             context.Context
+	cond            *sync.Cond
 	ttl             time.Duration
 }
 
@@ -73,33 +73,29 @@ const (
 func NewResourceLockDistributed(ctx context.Context, redis *redis.Client, ttl time.Duration) (*ResourceLockDistributed, error) {
 	redisLockClient := redislock.New(redis)
 
-	return &ResourceLockDistributed{ctx: ctx, redisClient: redis, redisLockClient: redisLockClient, lock: make(map[string]*redislock.Lock), ttl: ttl}, nil
+	return &ResourceLockDistributed{ctx: ctx, redisClient: redis, redisLockClient: redisLockClient, lock: sync.Map{}, ttl: ttl, cond: sync.NewCond(&sync.Mutex{})}, nil
 }
 
 // Lock the resource
-func (r *ResourceLockDistributed) Lock(id string) error {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
+func (r *ResourceLockDistributed) Lock(id string) {
+	for {
+		redisLock, err := r.redisLockClient.Obtain(r.ctx, id, r.ttl, nil)
+		if err != nil {
+			r.cond.Wait()
+			continue
+		}
 
-	redisLock, err := r.redisLockClient.Obtain(r.ctx, id, r.ttl, nil)
-	if err != nil {
-		return err
+		r.lock.Store(id, redisLock)
 	}
-
-	r.lock[id] = redisLock
-
-	return nil
 }
 
 // Unlock the resource and declare if it has been processed
 func (r *ResourceLockDistributed) Unlock(id string, processed bool) error {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
-	redisLock, ok := r.lock[id]
+	value, ok := r.lock.Load(id)
 	if !ok {
 		return errors.New("no lock with this id exists")
 	}
+	redisLock := value.(*redislock.Lock)
 
 	if processed {
 		if err := r.redisClient.Set(r.ctx, helpers.FormatKey(resourcePrefix, id), "TRUE", r.ttl).Err(); err != nil {
@@ -107,7 +103,12 @@ func (r *ResourceLockDistributed) Unlock(id string, processed bool) error {
 		}
 	}
 
-	return redisLock.Release(r.ctx)
+	if err := redisLock.Release(r.ctx); err != nil {
+		return err
+	}
+	r.cond.Broadcast()
+
+	return nil
 }
 
 // Return whether a resource has been processed
