@@ -87,7 +87,7 @@ func (l *Location) Upsert(user string, lat float32, long float32) error {
 		return err
 	}
 
-	l.eventStack.PushFront(&stackNode{event: eventUpsert, user: user, timestamp: timestamp})
+	l.eventStack.PushFront(&stackNode{event: eventUpsert, user: user})
 
 	return nil
 }
