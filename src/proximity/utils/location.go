@@ -33,13 +33,14 @@ type stackNode struct {
 }
 
 type Location struct {
-	ctx        context.Context                `json:"-"`
-	redis      *redis.Client                  `json:"-"`
-	lock       *utils.ResourceLockDistributed `json:"-"`
-	mutex      sync.RWMutex                   `json:"-"`
-	Location   sync.Map                       `json:"location"`
-	User       sync.Map                       `json:"user"`
-	EventStack *list.List                     `json:"eventStack"`
+	id         string
+	ctx        context.Context
+	redis      *redis.Client
+	lock       *utils.ResourceLockDistributed
+	mutex      sync.RWMutex
+	Location   *sync.Map
+	User       *sync.Map
+	EventStack *list.List
 }
 
 const (
@@ -52,8 +53,8 @@ const (
 // 2. When writing, we will have a method to sync the local data with what is in the redis database, where it will only update the partition with the latest timestamp
 
 // Make a new location structure
-func NewLocation(ctx context.Context, redis *redis.Client, lock *utils.ResourceLockDistributed) *Location {
-	return &Location{ctx: ctx, Location: sync.Map{}, User: sync.Map{}, redis: redis, lock: lock, EventStack: list.New()}
+func NewLocation(ctx context.Context, redis *redis.Client, lock *utils.ResourceLockDistributed, id string) *Location {
+	return &Location{ctx: ctx, Location: &sync.Map{}, User: &sync.Map{}, redis: redis, lock: lock, EventStack: list.New(), id: id}
 }
 
 // Add a new user
@@ -247,21 +248,23 @@ func (l *Location) Merge(merge *Location) {
 }
 
 // Sync local changes
-func (l *Location) Sync(id string) error {
-	stateKey := helpers.FormatKey(statePrefix, id)
+func (l *Location) Sync() error {
+	stateKey := helpers.FormatKey(statePrefix, l.id)
 
-	l.lock.Lock(id)
-	defer l.lock.Unlock(id, true)
+	l.lock.Lock(l.id)
+	defer l.lock.Unlock(l.id, true)
 
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
-	// **** Clearly it seems that the sync map does not serialize well
-
 	data, err := l.redis.Get(l.ctx, stateKey).Result()
 	if err == nil {
 		staged := &Location{}
-		json.Unmarshal([]byte(data), staged)
+		if err := json.Unmarshal([]byte(data), staged); err != nil {
+			return err
+		}
+
+		fmt.Println(staged)
 
 		l.merge(staged)
 		staged.merge(l)
@@ -270,16 +273,117 @@ func (l *Location) Sync(id string) error {
 		return err
 	}
 
-	fmt.Println(l.EventStack)
-	fmt.Println(&l.Location)
-	fmt.Println(&l.User)
-
 	// Push changes locally to redis
 	locationData, err := json.Marshal(l)
 	if err != nil {
 		return err
 	}
 	l.redis.Set(l.ctx, stateKey, locationData, 0)
+
+	return nil
+}
+
+// Helper function to convert sync.Map to a regular map
+func convertSyncMapToMap(syncMap *sync.Map) map[string]interface{} {
+	result := make(map[string]interface{})
+
+	syncMap.Range(func(key, value interface{}) bool {
+		result[fmt.Sprintf("%v", key)] = value
+		return true
+	})
+
+	return result
+}
+
+// Serialize a list for JSON encoding
+func convertListToArray(l *list.List) []interface{} {
+	result := make([]interface{}, 0, l.Len())
+
+	for e := l.Front(); e != nil; e = e.Next() {
+		result = append(result, e.Value)
+	}
+
+	return result
+}
+
+// Convert a regular map to sync.Map
+func convertMapToSyncMap(m map[string]interface{}) *sync.Map {
+	syncMap := &sync.Map{}
+	for key, value := range m {
+		syncMap.Store(key, value)
+	}
+	return syncMap
+}
+
+// Convert a JSON array to list.List
+func convertArrayToList(arr []interface{}) (*list.List, error) {
+	l := list.New()
+	for _, value := range arr {
+		nodeMap, ok := value.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		// eventValue, ok := nodeMap["event"]
+		// if !ok {
+		// 	return nil, errors.New("missing event")
+		// }
+
+		userValue, ok := nodeMap["user"]
+		if !ok {
+			return nil, errors.New("missing user")
+		}
+
+		// event, ok := eventValue.(string)
+		// if !ok {
+		// 	return nil, errors.New("invalid event")
+		// }
+
+		user, ok := userValue.(string)
+		if !ok {
+			return nil, errors.New("invalid user")
+		}
+
+		l.PushBack(&stackNode{
+			Event: 0,
+			User:  user,
+		})
+	}
+
+	return l, nil
+}
+
+func (l *Location) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&struct {
+		Location   *map[string]*UserData `json:"location"`
+		User       *map[string]string    `json:"user"`
+		EventStack *[]stackEvent         `json:"eventStack"`
+	}{
+		Location:   convertSyncMapToMap(l.Location),
+		User:       convertSyncMapToMap(l.User),
+		EventStack: convertListToArray(l.EventStack),
+	})
+}
+
+func (l *Location) UnmarshalJSON(data []byte) error {
+	temp := struct {
+		Location   map[string]interface{} `json:"location"`
+		User       map[string]interface{} `json:"user"`
+		EventStack []interface{}          `json:"eventStack"`
+	}{}
+
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	l.Location = convertMapToSyncMap(temp.Location)
+	l.User = convertMapToSyncMap(temp.User)
+
+	eventStack, err := convertArrayToList(temp.EventStack)
+	if err != nil {
+		return err
+	}
+	l.EventStack = eventStack
 
 	return nil
 }

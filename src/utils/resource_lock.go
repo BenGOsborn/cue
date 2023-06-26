@@ -12,12 +12,12 @@ import (
 )
 
 type ResourceLock struct {
-	mutex sync.Map
+	mutex *sync.Map
 }
 
 // Create a new resource lock
 func NewResourceLock() *ResourceLock {
-	return &ResourceLock{mutex: sync.Map{}}
+	return &ResourceLock{mutex: &sync.Map{}}
 }
 
 // Lock the mutex for reading
@@ -57,9 +57,9 @@ func (r *ResourceLock) UnlockWrite(id string) error {
 type ResourceLockDistributed struct {
 	redisClient     *redis.Client
 	redisLockClient *redislock.Client
-	lock            sync.Map
+	lock            *sync.Map
 	ctx             context.Context
-	cond            sync.Map
+	cond            *sync.Map
 	ttl             time.Duration
 	expiry          chan string
 }
@@ -73,7 +73,7 @@ const (
 func NewResourceLockDistributed(ctx context.Context, redis *redis.Client, ttl time.Duration) (*ResourceLockDistributed, error) {
 	redisLockClient := redislock.New(redis)
 
-	r := &ResourceLockDistributed{ctx: ctx, redisClient: redis, redisLockClient: redisLockClient, lock: sync.Map{}, ttl: ttl, cond: sync.Map{}, expiry: make(chan string)}
+	r := &ResourceLockDistributed{ctx: ctx, redisClient: redis, redisLockClient: redisLockClient, lock: &sync.Map{}, ttl: ttl, cond: &sync.Map{}, expiry: make(chan string)}
 
 	go func() {
 		pubsub := redis.Subscribe(ctx, resourceLockChannel)

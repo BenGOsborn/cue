@@ -9,7 +9,6 @@ import (
 	"github.com/bengosborn/cue/helpers"
 	pUtils "github.com/bengosborn/cue/proximity/utils"
 	"github.com/bengosborn/cue/utils"
-	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 )
 
@@ -37,7 +36,6 @@ func main() {
 	var lat float32 = 20.0
 	var long float32 = -60.0
 	user1 := "test123"
-	user2 := "test456"
 
 	lock, err := utils.NewResourceLockDistributed(ctx, redis, timeout)
 	if err != nil {
@@ -45,33 +43,23 @@ func main() {
 		return
 	}
 
-	location1 := pUtils.NewLocation(ctx, redis, lock)
-	if err := location1.Upsert(user1, lat, long); err != nil {
+	location := pUtils.NewLocation(ctx, redis, lock, "1")
+
+	if err := location.Upsert(user1, lat, long); err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	location2 := pUtils.NewLocation(ctx, redis, lock)
-	if err := location2.Upsert(user2, lat, long); err != nil {
+	if err := location.Sync(); err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	id := uuid.NewString()
-	location1.Sync(id)
-
-	out, err := location1.Nearby(user1, 1)
+	out, err := location.Nearby(user1, 1)
 	if err != nil {
 		fmt.Println(err)
+		return
 	} else {
 		fmt.Println(out)
 	}
-
-	out, err = location2.Nearby(user1, 1)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(out)
-	}
-
 }
