@@ -187,7 +187,7 @@ func (l *Location) Nearby(user string, radius int) ([]string, error) {
 }
 
 // Merge changes of another list into the current
-func (l *Location) Merge(merge *Location) {
+func (l *Location) merge(merge *Location) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
@@ -238,29 +238,45 @@ func (l *Location) Merge(merge *Location) {
 	}
 }
 
-// // Sync local changes
-// func (l *Location) Sync() error {
-// 	l.lock.Lock(stateKey)
-// 	defer l.lock.Unlock(stateKey, false)
+// Public method for merge which locks
+func (l *Location) Merge(merge *Location) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
 
-// 	data, err := l.redis.Get(l.ctx, stateKey).Result()
-// 	if err == nil {
-// 		staged := &Location{}
-// 		json.Unmarshal([]byte(data), staged)
+	merge.mutex.Lock()
+	defer merge.mutex.Unlock()
 
-// 		l.Merge(staged)
-// 		staged.Merge(l)
+	l.merge(merge)
+}
 
-// 	} else if err != redis.Nil {
-// 		return err
-// 	}
+// Sync local changes
+func (l *Location) Sync() error {
+	l.lock.Lock(stateKey)
+	defer l.lock.Unlock(stateKey, false)
 
-// 	// Push changes locally to redis
-// 	locationData, err := json.Marshal(l)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	l.redis.Set(l.ctx, stateKey, locationData, 0)
+	// l.mutex.Lock()
+	// defer l.mutex.Unlock()
 
-// 	return nil
-// }
+	// data, err := l.redis.Get(l.ctx, stateKey).Result()
+	// if err == nil {
+	// 	staged := &Location{}
+	// 	json.Unmarshal([]byte(data), staged)
+
+	// 	l.merge(staged)
+	// 	staged.merge(l)
+
+	// } else if err != redis.Nil {
+	// 	return err
+	// }
+
+	// // Push changes locally to redis
+	// locationData, err := json.Marshal(l)
+	// if err != nil {
+	// 	return err
+	// }
+	// l.redis.Set(l.ctx, stateKey, locationData, 0)
+
+	// return nil
+
+	return nil
+}

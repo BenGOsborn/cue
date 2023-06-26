@@ -61,6 +61,7 @@ type ResourceLockDistributed struct {
 	ctx             context.Context
 	cond            sync.Map
 	ttl             time.Duration
+	expiry          chan string
 }
 
 const (
@@ -72,24 +73,39 @@ const (
 func NewResourceLockDistributed(ctx context.Context, redis *redis.Client, ttl time.Duration) (*ResourceLockDistributed, error) {
 	redisLockClient := redislock.New(redis)
 
-	r := &ResourceLockDistributed{ctx: ctx, redisClient: redis, redisLockClient: redisLockClient, lock: sync.Map{}, ttl: ttl, cond: sync.Map{}}
+	r := &ResourceLockDistributed{ctx: ctx, redisClient: redis, redisLockClient: redisLockClient, lock: sync.Map{}, ttl: ttl, cond: sync.Map{}, expiry: make(chan string)}
 
 	go func() {
 		pubsub := redis.Subscribe(ctx, resourceLockChannel)
 		ch := pubsub.Channel()
 
-		for lockId := range ch {
-			value, ok := r.cond.Load(lockId.Payload)
-			if !ok {
-				continue
+		for {
+			select {
+			case lockId := <-ch:
+				value, ok := r.cond.Load(lockId.Payload)
+				if !ok {
+					continue
+				}
+				cond := value.(*sync.Cond)
+
+				cond.L.Lock()
+				cond.Broadcast()
+				cond.L.Unlock()
+			case lockId := <-r.expiry:
+				go func() {
+					time.Sleep(ttl)
+
+					value, ok := r.cond.Load(lockId)
+					if !ok {
+						return
+					}
+					cond := value.(*sync.Cond)
+
+					cond.L.Lock()
+					cond.Broadcast()
+					cond.L.Unlock()
+				}()
 			}
-			cond := value.(*sync.Cond)
-
-			cond.L.Lock()
-
-			cond.Broadcast()
-
-			cond.L.Unlock()
 		}
 	}()
 
@@ -107,20 +123,10 @@ func (r *ResourceLockDistributed) Lock(id string) {
 	for {
 		redisLock, err := r.redisLockClient.Obtain(r.ctx, id, r.ttl, nil)
 
-		timeout := time.After(r.ttl)
-		waitChan := make(chan interface{})
-		go func() {
-			cond.Wait()
-			close(waitChan)
-		}()
-
 		if err != nil {
-			select {
-			case <-waitChan:
-				continue
-			case <-timeout:
-				continue
-			}
+			r.expiry <- id
+			cond.Wait()
+			continue
 		}
 
 		r.lock.Store(id, redisLock)

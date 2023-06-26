@@ -38,33 +38,26 @@ func main() {
 	user1 := "test123"
 	user2 := "test456"
 
-	lock1, err := utils.NewResourceLockDistributed(ctx, redis, timeout)
+	lock, err := utils.NewResourceLockDistributed(ctx, redis, timeout)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	location1 := pUtils.NewLocation(ctx, redis, lock1)
 
+	location1 := pUtils.NewLocation(ctx, redis, lock)
 	if err := location1.Upsert(user1, lat, long); err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	lock2, err := utils.NewResourceLockDistributed(ctx, redis, timeout)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	location2 := pUtils.NewLocation(ctx, redis, lock2)
-
+	location2 := pUtils.NewLocation(ctx, redis, lock)
 	if err := location2.Upsert(user2, lat, long); err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	location2.Remove(user2)
-
-	location2.Merge(location1)
+	location1.Sync()
+	location2.Sync()
 
 	out, err := location1.Nearby(user1, 1)
 	if err != nil {
