@@ -3,7 +3,6 @@ package utils
 import (
 	"container/list"
 	"context"
-	"encoding/json"
 	"errors"
 	"sync"
 	"time"
@@ -26,8 +25,8 @@ const (
 )
 
 type stackNode struct {
-	event stackEvent
-	user  string
+	Event stackEvent `json:"event"`
+	User  string     `json:"user"`
 }
 
 type Location struct {
@@ -37,7 +36,7 @@ type Location struct {
 	mutex      sync.RWMutex                   `json:"-"`
 	Location   sync.Map                       `json:"location"`
 	User       sync.Map                       `json:"user"`
-	eventStack *list.List                     `json:"-"`
+	EventStack *list.List                     `json:"eventStack"`
 }
 
 const (
@@ -50,17 +49,12 @@ const (
 // 2. When writing, we will have a method to sync the local data with what is in the redis database, where it will only update the partition with the latest timestamp
 
 // Make a new location structure
-// func NewLocation(ctx context.Context, redis *redis.Client, lock *utils.ResourceLockDistributed) *Location {
-func NewLocation() *Location {
-	// return &Location{location: sync.Map{}, user: sync.Map{}, mutex: sync.RWMutex{}, redis: redis, lock: lock}
-	return &Location{eventStack: list.New()}
+func NewLocation(ctx context.Context, redis *redis.Client, lock *utils.ResourceLockDistributed) *Location {
+	return &Location{Location: sync.Map{}, User: sync.Map{}, redis: redis, lock: lock, EventStack: list.New()}
 }
 
 // Add a new user
 func (l *Location) upsert(user string, lat float32, long float32, timestamp time.Time) error {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
 	// Remove the user from the previous partition if they already exist
 	l.remove(user)
 
@@ -79,24 +73,24 @@ func (l *Location) upsert(user string, lat float32, long float32, timestamp time
 	return nil
 }
 
-// Public method for upsert which records event
+// Public method for upsert which records event and locks
 func (l *Location) Upsert(user string, lat float32, long float32) error {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
 	timestamp := time.Now()
 
 	if err := l.upsert(user, lat, long, timestamp); err != nil {
 		return err
 	}
 
-	l.eventStack.PushFront(&stackNode{event: eventUpsert, user: user})
+	l.EventStack.PushFront(&stackNode{Event: eventUpsert, User: user})
 
 	return nil
 }
 
 // Remove a user
-func (l *Location) remove(user string) {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
+func (l *Location) remove(user string) bool {
 	// Remove user
 	l.User.Delete(user)
 
@@ -107,21 +101,30 @@ func (l *Location) remove(user string) {
 		value, ok := l.Location.Load(prev.Encoded)
 		if ok {
 			partitionUsers := value.(map[string]*UserData)
-
 			delete(partitionUsers, user)
+
+			return true
 		}
 	}
+
+	return false
 }
 
-// Public method for remove which records event
-func (l *Location) Remove(user string) {
-	l.remove(user)
+// Public method for remove which records event and locks
+func (l *Location) Remove(user string) bool {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
 
-	l.eventStack.PushFront(&stackNode{event: eventDelete, user: user})
+	if l.remove(user) {
+		l.EventStack.PushFront(&stackNode{Event: eventDelete, User: user})
+		return true
+	}
+
+	return false
 }
 
 // Lookup a users data
-func (l *Location) Get(user string) (*UserData, bool) {
+func (l *Location) get(user string) (*UserData, bool) {
 	value, ok := l.User.Load(user)
 	if !ok {
 		return nil, false
@@ -137,6 +140,14 @@ func (l *Location) Get(user string) (*UserData, bool) {
 	userData, ok := partitionUsers[user]
 
 	return userData, ok
+}
+
+// Public method for get with locks
+func (l *Location) Get(user string) (*UserData, bool) {
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
+
+	return l.get(user)
 }
 
 // Get nearby users
@@ -177,76 +188,79 @@ func (l *Location) Nearby(user string, radius int) ([]string, error) {
 
 // Merge changes of another list into the current
 func (l *Location) Merge(merge *Location) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
+	merge.mutex.Lock()
+	defer merge.mutex.Unlock()
+
 	seen := make(map[string]bool)
 	temp := list.New()
 
 	// Sync local changes with shared state
-	for merge.eventStack.Len() > 0 {
-		value := merge.eventStack.Front()
+	for merge.EventStack.Len() > 0 {
+		value := merge.EventStack.Front()
 		event := value.Value.(*stackNode)
-		merge.eventStack.Remove(value)
+		merge.EventStack.Remove(value)
 
-		if _, ok := seen[event.user]; ok {
+		if _, ok := seen[event.User]; ok {
 			continue
 		}
 
-		if event.event == eventDelete {
-			l.remove(event.user)
+		if event.Event == eventDelete {
+			l.remove(event.User)
 			temp.PushFront(event)
-		} else if event.event == eventUpsert {
-			mergeUserData, ok := merge.Get(event.user)
+		} else if event.Event == eventUpsert {
+			mergeUserData, ok := merge.get(event.User)
 			if !ok {
 				panic("user does not exist")
 			}
 
-			userData, ok := l.Get(event.user)
+			userData, ok := l.get(event.User)
 			if !ok || userData.Timestamp.Before(mergeUserData.Timestamp) && time.Now().Before(userData.Timestamp.Add(timeout)) {
-				l.upsert(event.user, mergeUserData.Lat, mergeUserData.Long, mergeUserData.Timestamp)
+				l.upsert(event.User, mergeUserData.Lat, mergeUserData.Long, mergeUserData.Timestamp)
 				temp.PushFront(event)
 			}
 		} else {
 			panic("invalid event type")
 		}
 
-		seen[event.user] = true
+		seen[event.User] = true
 	}
 
 	// Push temp stack elements back
 	for temp.Len() > 0 {
-		value := merge.eventStack.Front()
+		value := temp.Front()
 		event := value.Value.(*stackNode)
-		merge.eventStack.Remove(value)
+		temp.Remove(value)
 
-		merge.eventStack.PushFront(event)
+		merge.EventStack.PushFront(event)
 	}
 }
 
-// Sync local changes
-func (l *Location) Sync() error {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
+// // Sync local changes
+// func (l *Location) Sync() error {
+// 	l.lock.Lock(stateKey)
+// 	defer l.lock.Unlock(stateKey, false)
 
-	l.lock.Lock(stateKey)
-	defer l.lock.Unlock(stateKey, false)
+// 	data, err := l.redis.Get(l.ctx, stateKey).Result()
+// 	if err == nil {
+// 		staged := &Location{}
+// 		json.Unmarshal([]byte(data), staged)
 
-	data, err := l.redis.Get(l.ctx, stateKey).Result()
-	if err == nil {
-		staged := &Location{}
-		json.Unmarshal([]byte(data), staged)
+// 		l.Merge(staged)
+// 		staged.Merge(l)
 
-		l.Merge(staged)
-		staged.Merge(l)
+// 	} else if err != redis.Nil {
+// 		return err
+// 	}
 
-	} else if err != redis.Nil {
-		return err
-	}
+// 	// Push changes locally to redis
+// 	locationData, err := json.Marshal(l)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	l.redis.Set(l.ctx, stateKey, locationData, 0)
 
-	// Push changes locally to redis
-	locationData, err := json.Marshal(l)
-	if err != nil {
-		return err
-	}
-	l.redis.Set(l.ctx, stateKey, locationData, 0)
-
-	return nil
-}
+// 	return nil
+// }
