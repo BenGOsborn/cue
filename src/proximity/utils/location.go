@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -42,8 +43,8 @@ type Location struct {
 }
 
 const (
-	timeout  = 5 * time.Minute
-	stateKey = "location:stage"
+	timeout     = 5 * time.Minute
+	statePrefix = "location:stage"
 )
 
 // **** I need to use this with a distributed lock and redis...
@@ -246,10 +247,11 @@ func (l *Location) Merge(merge *Location) {
 }
 
 // Sync local changes
-func (l *Location) Sync() error {
-	key := helpers.FormatKey(stateKey, "lock")
-	l.lock.Lock(key)
-	defer l.lock.Unlock(key, false)
+func (l *Location) Sync(id string) error {
+	stateKey := helpers.FormatKey(statePrefix, id)
+
+	l.lock.Lock(id)
+	defer l.lock.Unlock(id, true)
 
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
@@ -267,6 +269,10 @@ func (l *Location) Sync() error {
 	} else if err != redis.Nil {
 		return err
 	}
+
+	fmt.Println(l.EventStack)
+	fmt.Println(&l.Location)
+	fmt.Println(&l.User)
 
 	// Push changes locally to redis
 	locationData, err := json.Marshal(l)

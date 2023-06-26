@@ -9,6 +9,7 @@ import (
 	"github.com/bengosborn/cue/helpers"
 	pUtils "github.com/bengosborn/cue/proximity/utils"
 	"github.com/bengosborn/cue/utils"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 )
 
@@ -56,10 +57,8 @@ func main() {
 		return
 	}
 
-	// **** So it seems that syncing does not do anything - this is NOT good
-
-	location1.Sync()
-	location2.Sync()
+	id := uuid.NewString()
+	location1.Sync(id)
 
 	out, err := location1.Nearby(user1, 1)
 	if err != nil {

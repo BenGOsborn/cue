@@ -65,8 +65,8 @@ type ResourceLockDistributed struct {
 }
 
 const (
-	resourcePrefix      = "resource:prefix"
-	resourceLockChannel = "resource:lock-channel"
+	resourcePrefix      = "resource-lock:resource"
+	resourceLockChannel = "resource-lock:channel"
 )
 
 // Create a new distributed resource lock
