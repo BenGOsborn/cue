@@ -3,10 +3,12 @@ package utils
 import (
 	"container/list"
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 	"time"
 
+	"github.com/bengosborn/cue/helpers"
 	"github.com/bengosborn/cue/utils"
 	"github.com/redis/go-redis/v9"
 )
@@ -50,7 +52,7 @@ const (
 
 // Make a new location structure
 func NewLocation(ctx context.Context, redis *redis.Client, lock *utils.ResourceLockDistributed) *Location {
-	return &Location{Location: sync.Map{}, User: sync.Map{}, redis: redis, lock: lock, EventStack: list.New()}
+	return &Location{ctx: ctx, Location: sync.Map{}, User: sync.Map{}, redis: redis, lock: lock, EventStack: list.New()}
 }
 
 // Add a new user
@@ -188,12 +190,6 @@ func (l *Location) Nearby(user string, radius int) ([]string, error) {
 
 // Merge changes of another list into the current
 func (l *Location) merge(merge *Location) {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
-	merge.mutex.Lock()
-	defer merge.mutex.Unlock()
-
 	seen := make(map[string]bool)
 	temp := list.New()
 
@@ -251,32 +247,33 @@ func (l *Location) Merge(merge *Location) {
 
 // Sync local changes
 func (l *Location) Sync() error {
-	l.lock.Lock(stateKey)
-	defer l.lock.Unlock(stateKey, false)
+	key := helpers.FormatKey(stateKey, "lock")
+	l.lock.Lock(key)
+	defer l.lock.Unlock(key, false)
 
-	// l.mutex.Lock()
-	// defer l.mutex.Unlock()
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
 
-	// data, err := l.redis.Get(l.ctx, stateKey).Result()
-	// if err == nil {
-	// 	staged := &Location{}
-	// 	json.Unmarshal([]byte(data), staged)
+	// **** Clearly it seems that the sync map does not serialize well
 
-	// 	l.merge(staged)
-	// 	staged.merge(l)
+	data, err := l.redis.Get(l.ctx, stateKey).Result()
+	if err == nil {
+		staged := &Location{}
+		json.Unmarshal([]byte(data), staged)
 
-	// } else if err != redis.Nil {
-	// 	return err
-	// }
+		l.merge(staged)
+		staged.merge(l)
 
-	// // Push changes locally to redis
-	// locationData, err := json.Marshal(l)
-	// if err != nil {
-	// 	return err
-	// }
-	// l.redis.Set(l.ctx, stateKey, locationData, 0)
+	} else if err != redis.Nil {
+		return err
+	}
 
-	// return nil
+	// Push changes locally to redis
+	locationData, err := json.Marshal(l)
+	if err != nil {
+		return err
+	}
+	l.redis.Set(l.ctx, stateKey, locationData, 0)
 
 	return nil
 }

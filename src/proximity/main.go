@@ -56,6 +56,8 @@ func main() {
 		return
 	}
 
+	// **** So it seems that syncing does not do anything - this is NOT good
+
 	location1.Sync()
 	location2.Sync()
 
