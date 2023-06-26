@@ -175,6 +175,52 @@ func (l *Location) Nearby(user string, radius int) ([]string, error) {
 	return users, nil
 }
 
+// Merge changes of another list into the current
+func (l *Location) Merge(merge *Location) {
+	seen := make(map[string]bool)
+	temp := list.New()
+
+	// Sync local changes with shared state
+	for merge.eventStack.Len() > 0 {
+		value := merge.eventStack.Front()
+		event := value.Value.(*stackNode)
+		merge.eventStack.Remove(value)
+
+		if _, ok := seen[event.user]; ok {
+			continue
+		}
+
+		if event.event == eventDelete {
+			l.remove(event.user)
+			temp.PushFront(event)
+		} else if event.event == eventUpsert {
+			mergeUserData, ok := merge.Get(event.user)
+			if !ok {
+				panic("user does not exist")
+			}
+
+			userData, ok := l.Get(event.user)
+			if !ok || userData.Timestamp.Before(mergeUserData.Timestamp) && time.Now().Before(userData.Timestamp.Add(timeout)) {
+				l.upsert(event.user, mergeUserData.Lat, mergeUserData.Long, mergeUserData.Timestamp)
+				temp.PushFront(event)
+			}
+		} else {
+			panic("invalid event type")
+		}
+
+		seen[event.user] = true
+	}
+
+	// Push temp stack elements back
+	for temp.Len() > 0 {
+		value := merge.eventStack.Front()
+		event := value.Value.(*stackNode)
+		merge.eventStack.Remove(value)
+
+		merge.eventStack.PushFront(event)
+	}
+}
+
 // Sync local changes
 func (l *Location) Sync() error {
 	l.mutex.Lock()
@@ -183,45 +229,13 @@ func (l *Location) Sync() error {
 	l.lock.Lock(stateKey)
 	defer l.lock.Unlock(stateKey, false)
 
-	// Pull data from redis into the local changes
 	data, err := l.redis.Get(l.ctx, stateKey).Result()
 	if err == nil {
-		staged := Location{}
-		json.Unmarshal([]byte(data), &staged)
+		staged := &Location{}
+		json.Unmarshal([]byte(data), staged)
 
-		// Compare the states and update the local state according to timestamps
-		seen := make(map[string]bool)
-
-		for l.eventStack.Len() > 0 {
-			value := l.eventStack.Front()
-			event := value.Value.(*stackNode)
-			l.eventStack.Remove(value)
-
-			if _, ok := seen[event.user]; ok {
-				continue
-			}
-
-			// **** YIKES - we have gotten this all back to front - we actually need to push the changes from the REDIS state TO the local state, not the other way around
-
-			if event.event == eventDelete {
-				staged.remove(event.user)
-			} else if event.event == eventUpsert {
-				localUserData, ok := l.Get(event.user)
-				if !ok {
-					panic("user does not exist")
-				}
-
-				userData, ok := staged.Get(event.user)
-
-				if !ok || userData.Timestamp.Before(localUserData.Timestamp) {
-					staged.upsert(event.user, localUserData.Lat, localUserData.Long, localUserData.Timestamp)
-				}
-			} else {
-				panic("invalid event type")
-			}
-
-			seen[event.user] = true
-		}
+		l.Merge(staged)
+		staged.Merge(l)
 
 	} else if err != redis.Nil {
 		return err

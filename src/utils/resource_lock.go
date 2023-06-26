@@ -106,9 +106,21 @@ func (r *ResourceLockDistributed) Lock(id string) {
 
 	for {
 		redisLock, err := r.redisLockClient.Obtain(r.ctx, id, r.ttl, nil)
-		if err != nil {
+
+		timeout := time.After(r.ttl)
+		waitChan := make(chan interface{})
+		go func() {
 			cond.Wait()
-			continue
+			close(waitChan)
+		}()
+
+		if err != nil {
+			select {
+			case <-waitChan:
+				continue
+			case <-timeout:
+				continue
+			}
 		}
 
 		r.lock.Store(id, redisLock)
