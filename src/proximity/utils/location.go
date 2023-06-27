@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -264,8 +263,6 @@ func (l *Location) Sync() error {
 			return err
 		}
 
-		fmt.Println(staged)
-
 		l.merge(staged)
 		staged.merge(l)
 
@@ -283,107 +280,80 @@ func (l *Location) Sync() error {
 	return nil
 }
 
-// Helper function to convert sync.Map to a regular map
-func convertSyncMapToMap(syncMap *sync.Map) map[string]interface{} {
-	result := make(map[string]interface{})
-
-	syncMap.Range(func(key, value interface{}) bool {
-		result[fmt.Sprintf("%v", key)] = value
-		return true
-	})
-
-	return result
-}
-
-// Serialize a list for JSON encoding
-func convertListToArray(l *list.List) []interface{} {
-	result := make([]interface{}, 0, l.Len())
-
-	for e := l.Front(); e != nil; e = e.Next() {
-		result = append(result, e.Value)
-	}
-
-	return result
-}
-
-// Convert a regular map to sync.Map
-func convertMapToSyncMap(m map[string]interface{}) *sync.Map {
-	syncMap := &sync.Map{}
-	for key, value := range m {
-		syncMap.Store(key, value)
-	}
-	return syncMap
-}
-
-// Convert a JSON array to list.List
-func convertArrayToList(arr []interface{}) (*list.List, error) {
-	l := list.New()
-	for _, value := range arr {
-		nodeMap, ok := value.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		// eventValue, ok := nodeMap["event"]
-		// if !ok {
-		// 	return nil, errors.New("missing event")
-		// }
-
-		userValue, ok := nodeMap["user"]
-		if !ok {
-			return nil, errors.New("missing user")
-		}
-
-		// event, ok := eventValue.(string)
-		// if !ok {
-		// 	return nil, errors.New("invalid event")
-		// }
-
-		user, ok := userValue.(string)
-		if !ok {
-			return nil, errors.New("invalid user")
-		}
-
-		l.PushBack(&stackNode{
-			Event: 0,
-			User:  user,
-		})
-	}
-
-	return l, nil
+type temp struct {
+	Location   *map[string]map[string]*UserData `json:"location"`
+	User       *map[string]*Partition           `json:"user"`
+	EventStack *[]*stackNode                    `json:"eventStack"`
 }
 
 func (l *Location) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		Location   *map[string]*UserData `json:"location"`
-		User       *map[string]string    `json:"user"`
-		EventStack *[]stackEvent         `json:"eventStack"`
-	}{
-		Location:   convertSyncMapToMap(l.Location),
-		User:       convertSyncMapToMap(l.User),
-		EventStack: convertListToArray(l.EventStack),
+	return json.Marshal(&temp{
+		Location: func() *map[string]map[string]*UserData {
+			m := make(map[string]map[string]*UserData)
+
+			l.Location.Range(func(key, value interface{}) bool {
+				location := key.(string)
+
+				m[location] = value.(map[string]*UserData)
+				return true
+			})
+
+			return &m
+		}(),
+		User: func() *map[string]*Partition {
+			m := make(map[string]*Partition)
+
+			l.User.Range(func(key, value interface{}) bool {
+				user := key.(string)
+				partition := value.(*Partition)
+
+				m[user] = partition
+
+				return true
+			})
+
+			return &m
+		}(),
+		EventStack: func() *[]*stackNode {
+			result := make([]*stackNode, l.EventStack.Len())
+			i := 0
+
+			for e := l.EventStack.Front(); e != nil; e = e.Next() {
+				result[i] = e.Value.(*stackNode)
+				i += 1
+			}
+
+			return &result
+		}(),
 	})
 }
 
 func (l *Location) UnmarshalJSON(data []byte) error {
-	temp := struct {
-		Location   map[string]interface{} `json:"location"`
-		User       map[string]interface{} `json:"user"`
-		EventStack []interface{}          `json:"eventStack"`
-	}{}
-
-	if err := json.Unmarshal(data, &temp); err != nil {
+	tmp := &temp{}
+	if err := json.Unmarshal(data, tmp); err != nil {
 		return err
 	}
 
-	l.Location = convertMapToSyncMap(temp.Location)
-	l.User = convertMapToSyncMap(temp.User)
-
-	eventStack, err := convertArrayToList(temp.EventStack)
-	if err != nil {
-		return err
+	// Update the event stack
+	eventStack := list.New()
+	for _, value := range *tmp.EventStack {
+		eventStack.PushBack(value)
 	}
 	l.EventStack = eventStack
+
+	// Update the user
+	userSyncMap := &sync.Map{}
+	for key, value := range *tmp.User {
+		userSyncMap.Store(key, value)
+	}
+	l.User = userSyncMap
+
+	// Update the location
+	locationSyncMap := &sync.Map{}
+	for key, value := range *tmp.Location {
+		locationSyncMap.Store(key, value)
+	}
+	l.Location = locationSyncMap
 
 	return nil
 }

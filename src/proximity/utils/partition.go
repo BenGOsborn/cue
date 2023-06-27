@@ -2,19 +2,20 @@ package utils
 
 import (
 	"container/list"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 )
 
-type Chunk struct {
+type chunk struct {
 	Y int `json:"y"`
 	X int `json:"x"`
 }
 
 type Partition struct {
-	Encoded string    `json:"encoded"`
-	Chunks  *[]*Chunk `json:"chunks"`
+	Encoded string
+	Chunks  *[]*chunk
 }
 
 // Depth of the partitioning e.g. the size of each partition
@@ -37,9 +38,9 @@ const (
 )
 
 // Partition a given latitude and longitude
-func partition(lat float32, long float32, latMin float32, latMax float32, longMin float32, longMax float32, depth uint) (string, *[]*Chunk, error) {
+func partition(lat float32, long float32, latMin float32, latMax float32, longMin float32, longMax float32, depth uint) (string, *[]*chunk, error) {
 	buffer := strings.Builder{}
-	chunks := make([]*Chunk, depth)
+	chunks := make([]*chunk, depth)
 
 	var recurse func(float32, float32, float32, float32, uint) error
 	recurse = func(latMin float32, latMax float32, longMin float32, longMax float32, depth uint) error {
@@ -86,7 +87,7 @@ func partition(lat float32, long float32, latMin float32, latMax float32, longMi
 
 		// Write the data
 		depth -= 1
-		chunks[depth] = &Chunk{Y: y, X: x}
+		chunks[depth] = &chunk{Y: y, X: x}
 
 		if _, err := buffer.WriteString(fmt.Sprint(2*y + x)); err != nil {
 			return err
@@ -113,7 +114,7 @@ func NewPartitionFromCoords(lat float32, long float32) (*Partition, error) {
 }
 
 // Create a new partition from chunks
-func NewPartitonFromChunks(chunks *[]*Chunk) (*Partition, error) {
+func NewPartitonFromChunks(chunks *[]*chunk) (*Partition, error) {
 	buffer := strings.Builder{}
 
 	for i := len(*chunks) - 1; i >= 0; i-- {
@@ -129,25 +130,25 @@ func NewPartitonFromChunks(chunks *[]*Chunk) (*Partition, error) {
 
 // Create a new partition from a encoded string
 func NewPartitionFromEncoded(encoded string) (*Partition, error) {
-	chunks := make([]*Chunk, len(encoded))
+	chunks := make([]*chunk, len(encoded))
 
 	for i, char := range encoded {
-		var chunk Chunk
+		var chn chunk
 
 		switch string(char) {
 		case "0":
-			chunk = Chunk{X: 0, Y: 0}
+			chn = chunk{X: 0, Y: 0}
 		case "1":
-			chunk = Chunk{X: 1, Y: 0}
+			chn = chunk{X: 1, Y: 0}
 		case "2":
-			chunk = Chunk{X: 0, Y: 1}
+			chn = chunk{X: 0, Y: 1}
 		case "3":
-			chunk = Chunk{X: 1, Y: 1}
+			chn = chunk{X: 1, Y: 1}
 		default:
 			return nil, errors.New("invalid string character")
 		}
 
-		chunks[len(encoded)-i-1] = &chunk
+		chunks[len(encoded)-i-1] = &chn
 	}
 
 	return &Partition{Encoded: encoded, Chunks: &chunks}, nil
@@ -186,10 +187,10 @@ func (p *Partition) Translate(direction Direction) (*Partition, error) {
 	}
 
 	chunks := p.Chunks
-	newChunks := make([]*Chunk, len(*chunks))
+	newChunks := make([]*chunk, len(*chunks))
 
-	for i, chunk := range *chunks {
-		newY := chunk.Y
+	for i, chn := range *chunks {
+		newY := chn.Y
 		if remainderY != 0 {
 			temp := newY + remainderY
 
@@ -204,7 +205,7 @@ func (p *Partition) Translate(direction Direction) (*Partition, error) {
 			}
 		}
 
-		newX := chunk.X
+		newX := chn.X
 		if remainderX != 0 {
 			temp := newX + remainderX
 
@@ -219,7 +220,7 @@ func (p *Partition) Translate(direction Direction) (*Partition, error) {
 			}
 		}
 
-		newChunks[i] = &Chunk{X: newX, Y: newY}
+		newChunks[i] = &chunk{X: newX, Y: newY}
 	}
 
 	newPartition, err := NewPartitonFromChunks(&newChunks)
@@ -288,4 +289,25 @@ func (p *Partition) Nearby(radius int) (*[]*Partition, error) {
 	}
 
 	return &out, nil
+}
+
+func (p *Partition) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.Encoded)
+}
+
+func (p *Partition) UnmarshalJSON(data []byte) error {
+	var encoded string
+	if err := json.Unmarshal(data, &encoded); err != nil {
+		return err
+	}
+
+	newPartition, err := NewPartitionFromEncoded(encoded)
+	if err != nil {
+		return err
+	}
+
+	p.Chunks = newPartition.Chunks
+	p.Encoded = newPartition.Encoded
+
+	return nil
 }
