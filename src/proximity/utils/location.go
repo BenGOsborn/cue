@@ -194,7 +194,8 @@ func (l *Location) Nearby(user string, radius int) ([]string, error) {
 	return users, nil
 }
 
-// Merge changes of another list into the current
+// Merge changes between two lists
+// **** NEED TO COMBINE STACKS
 func (l *Location) merge(merge *Location) {
 	seen := make(map[string]bool)
 	temp := list.New()
