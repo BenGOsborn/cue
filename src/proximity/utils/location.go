@@ -47,47 +47,55 @@ const (
 	statePrefix = "location:stage"
 )
 
-// **** I need to use this with a distributed lock and redis...
-// 1. When reading, we need to look at redis values and the values we have locally and choose the one with the most recent timestamp
-// 2. When writing, we will have a method to sync the local data with what is in the redis database, where it will only update the partition with the latest timestamp
-
 // Make a new location structure
 func NewLocation(ctx context.Context, redis *redis.Client, lock *utils.ResourceLockDistributed, id string) *Location {
 	return &Location{ctx: ctx, Location: &sync.Map{}, User: &sync.Map{}, redis: redis, lock: lock, EventStack: list.New(), id: id}
 }
 
+// **** We do need the events to be a part of this, which means we cannot use the remove function within this
+
 // Add a new user
 func (l *Location) upsert(user string, lat float32, long float32, timestamp time.Time) error {
-	// Remove the user from the previous partition if they already exist
-	l.remove(user)
-
-	// Add the user to the partition
+	// Get the partition
 	partition, err := NewPartitionFromCoords(lat, long)
 	if err != nil {
 		return err
 	}
 
+	// Remove the user from the previous partition if they already exist
+	l.User.Delete(user)
+
+	value, ok := l.User.Load(user)
+	if ok {
+		prev := value.(*Partition)
+
+		value, ok := l.Location.Load(prev.Encoded)
+		if ok {
+			partitionUsers := value.(map[string]*UserData)
+			delete(partitionUsers, user)
+		}
+	}
+
+	// Add the user to the partition
 	l.User.Store(user, partition)
-	value, _ := l.Location.LoadOrStore(partition.Encoded, make(map[string]*UserData))
+	value, _ = l.Location.LoadOrStore(partition.Encoded, make(map[string]*UserData))
 	partitionUsers := value.(map[string]*UserData)
 
 	partitionUsers[user] = &UserData{Lat: lat, Long: long, Timestamp: timestamp}
 
+	l.EventStack.PushFront(&stackNode{Event: eventUpsert, User: user})
+
 	return nil
 }
 
-// Public method for upsert which records event and locks
+// Public method for upsert which locks
 func (l *Location) Upsert(user string, lat float32, long float32) error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
-	timestamp := time.Now()
-
-	if err := l.upsert(user, lat, long, timestamp); err != nil {
+	if err := l.upsert(user, lat, long, time.Now()); err != nil {
 		return err
 	}
-
-	l.EventStack.PushFront(&stackNode{Event: eventUpsert, User: user})
 
 	return nil
 }
@@ -106,6 +114,8 @@ func (l *Location) remove(user string) bool {
 			partitionUsers := value.(map[string]*UserData)
 			delete(partitionUsers, user)
 
+			l.EventStack.PushFront(&stackNode{Event: eventDelete, User: user})
+
 			return true
 		}
 	}
@@ -118,12 +128,7 @@ func (l *Location) Remove(user string) bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
-	if l.remove(user) {
-		l.EventStack.PushFront(&stackNode{Event: eventDelete, User: user})
-		return true
-	}
-
-	return false
+	return l.remove(user)
 }
 
 // Lookup a users data
@@ -263,8 +268,8 @@ func (l *Location) Sync() error {
 			return err
 		}
 
-		l.merge(staged)
 		staged.merge(l)
+		l.merge(staged)
 
 	} else if err != redis.Nil {
 		return err

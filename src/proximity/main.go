@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log"
@@ -40,6 +41,8 @@ func main() {
 	user2 := "test456"
 	locationId := "1"
 
+	scanner := bufio.NewScanner(os.Stdin)
+
 	lock, err := utils.NewResourceLockDistributed(ctx, redis, timeout)
 	if err != nil {
 		logger.Fatalln(err)
@@ -55,9 +58,14 @@ func main() {
 		logger.Fatalln(err)
 	}
 
+	scanner.Scan()
+
 	if err := location1.Sync(); err != nil {
 		logger.Fatalln(err)
 	}
+
+	scanner.Scan()
+
 	if err := location2.Sync(); err != nil {
 		logger.Fatalln(err)
 	}
@@ -76,7 +84,11 @@ func main() {
 		fmt.Println(out)
 	}
 
-	// **** We need to actually figure out what should happen here first...
+	scanner.Scan()
+
+	for e := location2.EventStack.Front(); e != nil; e = e.Next() {
+		fmt.Println("Location 2 event", e.Value)
+	}
 
 	location2.Remove(user1)
 	location2.Remove(user2)
