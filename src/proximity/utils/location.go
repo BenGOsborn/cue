@@ -114,11 +114,11 @@ func (l *Location) remove(user string) bool {
 			partitionUsers := value.(map[string]*UserData)
 			delete(partitionUsers, user)
 
-			l.EventStack.PushFront(&stackNode{Event: eventDelete, User: user})
-
 			return true
 		}
 	}
+
+	l.EventStack.PushFront(&stackNode{Event: eventDelete, User: user})
 
 	return false
 }
