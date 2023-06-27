@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -108,29 +107,16 @@ func (l *Location) Upsert(user string, lat float32, long float32) error {
 // Remove a user
 func (l *Location) remove(user string) bool {
 	// Remove user
-	l.User.Delete(user)
-
-	// **** There is nothing in here - WHY
-	fmt.Println("STARTED", user)
-
-	l.User.Range(func(key, value any) bool {
-		fmt.Println(key)
-
-		return true
-	})
-
 	value, ok := l.User.Load(user)
 	if ok {
 		prev := value.(*Partition)
-
-		fmt.Println("HERE")
 
 		value, ok := l.Location.Load(prev.Encoded)
 		if ok {
 			partitionUsers := value.(map[string]*UserData)
 			delete(partitionUsers, user)
 
-			fmt.Println("Deleted")
+			l.User.Delete(user)
 
 			return true
 		}
@@ -144,9 +130,12 @@ func (l *Location) Remove(user string) bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
-	l.EventStack.PushFront(&stackNode{Event: eventDelete, User: user, Timestamp: time.Now()})
+	if l.remove(user) {
+		l.EventStack.PushFront(&stackNode{Event: eventDelete, User: user, Timestamp: time.Now()})
+		return true
+	}
 
-	return l.remove(user)
+	return false
 }
 
 // Get nearby users
@@ -205,6 +194,14 @@ func (l *Location) get(user string) (*UserData, error) {
 	}
 
 	return userData, nil
+}
+
+// Public method to get the user with locks
+func (l *Location) Get(user string) (*UserData, error) {
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
+
+	return l.get(user)
 }
 
 // Merge changes between two lists
@@ -404,4 +401,13 @@ func (l *Location) UnmarshalJSON(data []byte) error {
 	l.Location = locationSyncMap
 
 	return nil
+}
+
+func (l *Location) String() string {
+	data, err := json.Marshal(l)
+	if err != nil {
+		panic(err)
+	}
+
+	return string(data)
 }

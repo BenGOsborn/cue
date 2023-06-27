@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/bengosborn/cue/helpers"
@@ -63,25 +64,40 @@ func main() {
 		logger.Fatalln(err)
 	}
 
-	out, err := location1.Nearby(user1, 1)
-	if err != nil {
-		logger.Fatalln(err)
-	} else {
-		fmt.Println(out)
-	}
+	// out, err := location1.Nearby(user1, 1)
+	// if err != nil {
+	// 	logger.Fatalln(err)
+	// } else {
+	// 	fmt.Println(out)
+	// }
 
-	out, err = location2.Nearby(user1, 1)
-	if err != nil {
-		logger.Fatalln(err)
-	} else {
-		fmt.Println(out)
-	}
+	// out, err = location2.Nearby(user1, 1)
+	// if err != nil {
+	// 	logger.Fatalln(err)
+	// } else {
+	// 	fmt.Println(out)
+	// }
 
-	// Delete and sync (PROBLEM)
+	// Delete and sync
 	location2.Remove(user1)
 	location2.Remove(user2)
 
-	if err := location2.Sync(); err != nil {
-		logger.Fatalln(err)
-	}
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+
+	go func() {
+		location2.Sync()
+		fmt.Println("Done location 2")
+		wg.Done()
+	}()
+	go func() {
+		location1.Sync()
+		fmt.Println("Done location 1")
+		wg.Done()
+	}()
+
+	wg.Wait()
+
+	fmt.Println(location1)
+	fmt.Println(location2)
 }

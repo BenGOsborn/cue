@@ -91,6 +91,7 @@ func NewResourceLockDistributed(ctx context.Context, redis *redis.Client, ttl ti
 				cond.L.Lock()
 				cond.Broadcast()
 				cond.L.Unlock()
+
 			case lockId := <-r.expiry:
 				go func() {
 					time.Sleep(ttl)
@@ -137,15 +138,9 @@ func (r *ResourceLockDistributed) Lock(id string) {
 
 // Unlock the resource and declare if it has been processed
 func (r *ResourceLockDistributed) Unlock(id string, processed bool) error {
-	value, _ := r.cond.LoadOrStore(id, sync.NewCond(&sync.Mutex{}))
-	cond := value.(*sync.Cond)
-
-	cond.L.Lock()
-	defer cond.L.Unlock()
-
 	value, ok := r.lock.Load(id)
 	if !ok {
-		return errors.New("no lock with this id exists")
+		return errors.New("no lock with this id")
 	}
 	redisLock := value.(*redislock.Lock)
 
@@ -155,13 +150,13 @@ func (r *ResourceLockDistributed) Unlock(id string, processed bool) error {
 		}
 	}
 
+	// Free lock
 	if err := redisLock.Release(r.ctx); err != nil {
 		return err
 	}
-	r.redisClient.Publish(r.ctx, resourceLockChannel, id)
-
-	r.cond.Delete(id)
 	r.lock.Delete(id)
+
+	r.redisClient.Publish(r.ctx, resourceLockChannel, id)
 
 	return nil
 }
