@@ -1,7 +1,6 @@
 package gateway_controller
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 
@@ -32,7 +31,7 @@ func receive(receiver string, connections *gwUtils.Connections, logger *log.Logg
 			if !ok {
 				logger.Println("receive.error: id does not exist")
 			} else {
-				logger.Println(fmt.Sprint("receive.error: ", err))
+				logger.Println("receive.error: ", err)
 			}
 
 			connections.Remove(receiver)
@@ -51,7 +50,7 @@ func HandleWs(connections *gwUtils.Connections, logger *log.Logger, process func
 
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			logger.Println(fmt.Sprint("handle.error: ", err))
+			logger.Println("handle.error: ", err)
 			return
 		}
 

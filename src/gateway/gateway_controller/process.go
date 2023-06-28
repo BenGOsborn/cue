@@ -2,7 +2,6 @@ package gateway_controller
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 
 	gwUtils "github.com/bengosborn/cue/gateway/utils"
@@ -31,7 +30,7 @@ func ProcessMessages(connections *gwUtils.Connections, broker utils.Broker, lock
 			if !ok {
 				logger.Println("processmessages.error: id does not exist")
 			} else {
-				logger.Println(fmt.Sprint("processmessages.error: ", err))
+				logger.Println("processmessages.error: ", err)
 			}
 
 			return false
@@ -39,6 +38,6 @@ func ProcessMessages(connections *gwUtils.Connections, broker utils.Broker, lock
 
 		return true
 	}, lock); err != nil {
-		logger.Fatalln(fmt.Sprint("processmessages.error: ", err))
+		logger.Fatalln("processmessages.error: ", err)
 	}
 }

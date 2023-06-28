@@ -17,8 +17,10 @@ import (
 	"github.com/joho/godotenv"
 )
 
-var addr = "0.0.0.0:8080"
-var timeout = 5 * time.Minute
+const (
+	addr        = "0.0.0.0:8080"
+	lockTimeout = 5 * time.Minute
+)
 
 // Process a message
 func Process(logger *log.Logger, broker utils.Broker, session *gwUtils.Session, authenticator *gwUtils.Authenticator) func(string, *gwUtils.Message) error {
@@ -28,14 +30,14 @@ func Process(logger *log.Logger, broker utils.Broker, session *gwUtils.Session, 
 		// Authenticate
 		sessionData, err := session.Get(msg.SessionId)
 		if err != nil {
-			logger.Println(fmt.Sprint("process.error: ", err))
+			logger.Println("process.error: ", err)
 
 			return nil
 		}
 
 		user, err := authenticator.VerifyToken(sessionData.Token)
 		if err != nil {
-			logger.Println(fmt.Sprint("process.error: ", err))
+			logger.Println("process.error: ", err)
 
 			return nil
 		}
@@ -54,18 +56,17 @@ func Process(logger *log.Logger, broker utils.Broker, session *gwUtils.Session, 
 func main() {
 	// Initialize environment
 	logger := log.New(os.Stdout, "[Gateway] ", log.Ldate|log.Ltime)
-
-	if os.Getenv("ENV") != "production" {
-		if err := godotenv.Load("../.env"); err != nil {
-			logger.Fatalln(fmt.Scan("main.error", err))
-		}
-	}
-
 	ctx := context.Background()
 	mux := http.NewServeMux()
 	server := &http.Server{
 		Addr:    addr,
 		Handler: mux,
+	}
+
+	if os.Getenv("ENV") != "production" {
+		if err := godotenv.Load("../.env"); err != nil {
+			logger.Fatalln(fmt.Scan("main.error", err))
+		}
 	}
 
 	// Initialize data structures
@@ -78,7 +79,7 @@ func main() {
 	}
 	defer redis.Close()
 
-	broker := utils.NewBrokerRedis(ctx, redis, os.Getenv("REDIS_GATEWAY_CHANNEL"))
+	broker := utils.NewBrokerRedis(ctx, redis, os.Getenv("REDIS_GATEWAY_CHANNEL_IN"))
 	if err != nil {
 		logger.Fatalln(fmt.Scan("main.error", err))
 	}
@@ -88,7 +89,7 @@ func main() {
 		logger.Fatalln(fmt.Scan("main.error", err))
 	}
 
-	lock, err := utils.NewResourceLockDistributed(ctx, redis, timeout)
+	lock, err := utils.NewResourceLockDistributed(ctx, redis, lockTimeout)
 	if err != nil {
 		logger.Fatalln(fmt.Scan("main.error", err))
 	}

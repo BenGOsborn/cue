@@ -14,22 +14,10 @@ import (
 )
 
 type UserData struct {
+	User      string    `json:"user"`
 	Lat       float32   `json:"lat"`
 	Long      float32   `json:"long"`
 	Timestamp time.Time `json:"timestamp"`
-}
-
-type stackEvent int
-
-const (
-	eventUpsert stackEvent = iota
-	eventDelete
-)
-
-type stackNode struct {
-	Event     stackEvent `json:"event"`
-	User      string     `json:"user"`
-	Timestamp time.Time  `json:"timestamp"`
 }
 
 type Location struct {
@@ -41,16 +29,16 @@ type Location struct {
 	Location   *sync.Map
 	User       *sync.Map
 	EventStack *list.List
+	ttl        time.Duration
 }
 
 const (
-	timeout     = 5 * time.Minute
 	statePrefix = "location:stage"
 )
 
 // Make a new location structure
-func NewLocation(ctx context.Context, redis *redis.Client, lock *utils.ResourceLockDistributed, id string) *Location {
-	return &Location{ctx: ctx, Location: &sync.Map{}, User: &sync.Map{}, redis: redis, lock: lock, EventStack: list.New(), id: id}
+func NewLocation(ctx context.Context, id string, ttl time.Duration, redis *redis.Client, lock *utils.ResourceLockDistributed) *Location {
+	return &Location{ctx: ctx, Location: &sync.Map{}, User: &sync.Map{}, redis: redis, lock: lock, EventStack: list.New(), id: id, ttl: ttl}
 }
 
 // Add a new user
@@ -83,7 +71,7 @@ func (l *Location) upsert(user string, lat float32, long float32, timestamp time
 	value, _ = l.Location.LoadOrStore(partition.Encoded, make(map[string]*UserData))
 	partitionUsers := value.(map[string]*UserData)
 
-	partitionUsers[user] = &UserData{Lat: lat, Long: long, Timestamp: timestamp}
+	partitionUsers[user] = &UserData{User: user, Lat: lat, Long: long, Timestamp: timestamp}
 
 	return nil
 }
@@ -99,43 +87,9 @@ func (l *Location) Upsert(user string, lat float32, long float32) error {
 		return err
 	}
 
-	l.EventStack.PushFront(&stackNode{Event: eventUpsert, User: user, Timestamp: timestamp})
+	l.EventStack.PushFront(&UserData{User: user, Timestamp: timestamp, Lat: lat, Long: long})
 
 	return nil
-}
-
-// Remove a user
-func (l *Location) remove(user string) bool {
-	// Remove user
-	value, ok := l.User.Load(user)
-	if ok {
-		prev := value.(*Partition)
-
-		value, ok := l.Location.Load(prev.Encoded)
-		if ok {
-			partitionUsers := value.(map[string]*UserData)
-			delete(partitionUsers, user)
-
-			l.User.Delete(user)
-
-			return true
-		}
-	}
-
-	return false
-}
-
-// Public method for remove which records event and locks
-func (l *Location) Remove(user string) bool {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
-	if l.remove(user) {
-		l.EventStack.PushFront(&stackNode{Event: eventDelete, User: user, Timestamp: time.Now()})
-		return true
-	}
-
-	return false
 }
 
 // Get nearby users
@@ -165,7 +119,7 @@ func (l *Location) Nearby(user string, radius int) ([]string, error) {
 		partitionUsers := value.(map[string]*UserData)
 
 		for usr, usrData := range partitionUsers {
-			if usr != user && time.Now().Before(usrData.Timestamp.Add(timeout)) {
+			if usr != user && time.Now().Before(usrData.Timestamp.Add(l.ttl)) {
 				users = append(users, usr)
 			}
 		}
@@ -211,7 +165,8 @@ func (l *Location) merge(merge *Location) {
 
 	// Sync local changes with shared state
 	for l.EventStack.Len() > 0 || merge.EventStack.Len() > 0 {
-		var event *stackNode
+		// Choose the most recent event
+		var event *UserData
 		var value *list.Element
 		var location *Location
 
@@ -219,16 +174,16 @@ func (l *Location) merge(merge *Location) {
 		value2 := merge.EventStack.Front()
 
 		if value1 == nil {
-			event = value2.Value.(*stackNode)
+			event = value2.Value.(*UserData)
 			value = value2
 			location = merge
 		} else if value2 == nil {
-			event = value1.Value.(*stackNode)
+			event = value1.Value.(*UserData)
 			value = value1
 			location = l
 		} else {
-			event1 := value1.Value.(*stackNode)
-			event2 := value2.Value.(*stackNode)
+			event1 := value1.Value.(*UserData)
+			event2 := value2.Value.(*UserData)
 
 			if event1.Timestamp.After(event2.Timestamp) {
 				event = event1
@@ -241,44 +196,32 @@ func (l *Location) merge(merge *Location) {
 			}
 		}
 
+		// Ensure no duplicate processing
 		location.EventStack.Remove(value)
 
 		if _, ok := seen[event.User]; ok {
 			continue
 		}
 
-		if event.Event == eventDelete {
-			l.remove(event.User)
-			merge.remove(event.User)
+		seen[event.User] = true
+
+		// Add event to both locations
+		if time.Now().Before(event.Timestamp.Add(l.ttl)) {
+			l.upsert(event.User, event.Lat, event.Long, event.Timestamp)
+			merge.upsert(event.User, event.Lat, event.Long, event.Timestamp)
 
 			temp.PushFront(event)
-		} else if event.Event == eventUpsert {
-			userData, err := location.get(event.User)
-			if err != nil {
-				panic("already seen user")
-			}
-
-			if time.Now().Before(event.Timestamp.Add(timeout)) {
-				l.upsert(event.User, userData.Lat, userData.Long, userData.Timestamp)
-				merge.upsert(event.User, userData.Lat, userData.Long, userData.Timestamp)
-
-				temp.PushFront(event)
-			}
-		} else {
-			panic("invalid event type")
 		}
-
-		seen[event.User] = true
 	}
 
 	// Push temp stack elements back
 	for temp.Len() > 0 {
 		value := temp.Front()
-		event := value.Value.(*stackNode)
+		event := value.Value.(*UserData)
 		temp.Remove(value)
 
 		l.EventStack.PushFront(event)
-		merge.EventStack.PushFront(&stackNode{Event: event.Event, User: event.User, Timestamp: event.Timestamp})
+		merge.EventStack.PushFront(&UserData{User: event.User, Timestamp: event.Timestamp, Lat: event.Lat, Long: event.Long})
 	}
 }
 
@@ -328,7 +271,7 @@ func (l *Location) Sync() error {
 type temp struct {
 	Location   *map[string]map[string]*UserData `json:"location"`
 	User       *map[string]*Partition           `json:"user"`
-	EventStack *[]*stackNode                    `json:"eventStack"`
+	EventStack *[]*UserData                     `json:"eventStack"`
 }
 
 func (l *Location) MarshalJSON() ([]byte, error) {
@@ -359,12 +302,12 @@ func (l *Location) MarshalJSON() ([]byte, error) {
 
 			return &m
 		}(),
-		EventStack: func() *[]*stackNode {
-			result := make([]*stackNode, l.EventStack.Len())
+		EventStack: func() *[]*UserData {
+			result := make([]*UserData, l.EventStack.Len())
 			i := 0
 
 			for e := l.EventStack.Front(); e != nil; e = e.Next() {
-				result[i] = e.Value.(*stackNode)
+				result[i] = e.Value.(*UserData)
 				i += 1
 			}
 
@@ -401,13 +344,4 @@ func (l *Location) UnmarshalJSON(data []byte) error {
 	l.Location = locationSyncMap
 
 	return nil
-}
-
-func (l *Location) String() string {
-	data, err := json.Marshal(l)
-	if err != nil {
-		panic(err)
-	}
-
-	return string(data)
 }
