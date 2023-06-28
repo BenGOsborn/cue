@@ -8,6 +8,14 @@ services:
             - .env
         environment:
             - ENV=production
+    proximity:
+        build:
+            dockerfile: ../Docker/proximity.Dockerfile
+            context: ./src
+        env_file:
+            - .env
+        environment:
+            - ENV=production
     nginx:
         image: nginx:latest
         depends_on:

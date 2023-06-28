@@ -12,7 +12,7 @@ import (
 
 const (
 	radius   = 5
-	syncTime = time.Minute * 5
+	syncTime = time.Second * 10
 )
 
 // Routing logic for all broker messages
@@ -27,6 +27,7 @@ func Controller(ctx context.Context, location *pUtils.Location, brokerIn utils.B
 				return
 			case <-timer:
 				location.Sync()
+				logger.Println("controller.success: location synced")
 			}
 		}
 	}()
@@ -55,16 +56,34 @@ func Controller(ctx context.Context, location *pUtils.Location, brokerIn utils.B
 			// Request a list of users from the request
 			out, err := location.Nearby(msg.User, radius)
 			if err != nil {
-				brokerOut.Send(&utils.BrokerMessage{Id: msg.Id, Receiver: msg.Receiver, User: msg.User, EventType: utils.Error, Body: err.Error()})
+				logger.Println("controller.error: failed to retrieve nearby users")
+
+				if err := brokerOut.Send(&utils.BrokerMessage{Id: msg.Id, Receiver: msg.Receiver, User: msg.User, EventType: utils.Error, Body: err.Error()}); err != nil {
+					logger.Println("controller.error: failed to send message")
+				}
+
+				return false
 			}
 
-			// Send the users to the user
+			// Send the nearby to the user
 			data, err := json.Marshal(out)
 			if err != nil {
-				brokerOut.Send(&utils.BrokerMessage{Id: msg.Id, Receiver: msg.Receiver, User: msg.User, EventType: utils.Error, Body: err.Error()})
+				logger.Println("controller.error: failed to serialize data")
+
+				if err := brokerOut.Send(&utils.BrokerMessage{Id: msg.Id, Receiver: msg.Receiver, User: msg.User, EventType: utils.Error, Body: err.Error()}); err != nil {
+					logger.Println("controller.error: failed to send message")
+				}
+
+				return false
 			}
 
-			brokerOut.Send(&utils.BrokerMessage{Id: msg.Id, Receiver: msg.Receiver, User: msg.User, EventType: utils.ProximityRequestNearby, Body: string(data)})
+			if err := brokerOut.Send(&utils.BrokerMessage{Id: msg.Id, Receiver: msg.Receiver, User: msg.User, EventType: utils.ProximityRequestNearby, Body: string(data)}); err != nil {
+				logger.Println("controller.error: retrieved nearby but failed to send for reason ", err)
+
+				return false
+			}
+
+			logger.Println("controller.success: retrieved nearby")
 
 			return true
 

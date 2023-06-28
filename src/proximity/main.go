@@ -16,7 +16,7 @@ import (
 const (
 	lockTimeout     = 5 * time.Minute
 	locationTimeout = 5 * time.Minute
-	locationId      = "proximity:main"
+	serviceId       = "proximity:main"
 )
 
 func main() {
@@ -41,10 +41,11 @@ func main() {
 		logger.Fatalln(err)
 	}
 
-	brokerIn := utils.NewBrokerRedis(ctx, redis, os.Getenv("REDIS_PROXIMITY_CHANNEL_IN"))
-	brokerOut := utils.NewBrokerRedis(ctx, redis, os.Getenv("REDIS_GATEWAY_CHANNEL_IN"))
+	brokerIn := utils.NewBrokerRedis(ctx, redis, os.Getenv("REDIS_PROXIMITY_CHANNEL_IN"), serviceId)
+	brokerOut := utils.NewBrokerRedis(ctx, redis, os.Getenv("REDIS_GATEWAY_CHANNEL_IN"), serviceId)
 
-	location := pUtils.NewLocation(ctx, locationId, locationTimeout, redis, lock)
+	location := pUtils.NewLocation(ctx, serviceId, locationTimeout, redis, lock)
 
+	logger.Println("starting proximity service...")
 	controller.Controller(ctx, location, brokerIn, brokerOut, lock, logger)
 }

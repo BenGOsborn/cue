@@ -20,6 +20,7 @@ import (
 const (
 	addr        = "0.0.0.0:8080"
 	lockTimeout = 5 * time.Minute
+	serviceId   = "gateway:main"
 )
 
 // Process a message
@@ -84,12 +85,12 @@ func main() {
 	}
 	defer redis.Close()
 
-	brokerIn := utils.NewBrokerRedis(ctx, redis, os.Getenv("REDIS_GATEWAY_CHANNEL_IN"))
+	brokerIn := utils.NewBrokerRedis(ctx, redis, os.Getenv("REDIS_GATEWAY_CHANNEL_IN"), serviceId)
 	if err != nil {
 		logger.Fatalln(fmt.Scan("main.error", err))
 	}
 
-	brokerProximity := utils.NewBrokerRedis(ctx, redis, os.Getenv("REDIS_PROXIMITY_CHANNEL_IN"))
+	brokerProximity := utils.NewBrokerRedis(ctx, redis, os.Getenv("REDIS_PROXIMITY_CHANNEL_IN"), serviceId)
 	if err != nil {
 		logger.Fatalln(fmt.Scan("main.error", err))
 	}

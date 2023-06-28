@@ -1,1 +1,1 @@
-docker-compose up --scale gateway=2 --build
+docker-compose up --scale gateway=2 --scale proximity=2 --build
