@@ -124,6 +124,7 @@ func NewBrokerRedis(ctx context.Context, redis *redis.Client, channel string, pr
 func (b *BrokerRedis) Listen(fn func(*BrokerMessage) bool, lock *ResourceLockDistributed) error {
 	pubsub := b.client.Subscribe(b.ctx, b.channel)
 	ch := pubsub.Channel()
+	defer pubsub.Close()
 
 	for rawMsg := range ch {
 		var msg BrokerMessage
