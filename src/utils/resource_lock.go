@@ -65,7 +65,7 @@ type ResourceLockDistributed struct {
 
 const (
 	resourcePrefix = "resource-lock:resource"
-	retryTimeout   = time.Second * 1
+	retryTimeout   = time.Millisecond * 500
 )
 
 // Create a new distributed resource lock
