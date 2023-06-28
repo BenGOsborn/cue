@@ -59,74 +59,29 @@ type ResourceLockDistributed struct {
 	redisLockClient *redislock.Client
 	lock            *sync.Map
 	ctx             context.Context
-	cond            *sync.Map
 	ttl             time.Duration
 	expiry          chan string
 }
 
 const (
-	resourcePrefix      = "resource-lock:resource"
-	resourceLockChannel = "resource-lock:channel"
+	resourcePrefix = "resource-lock:resource"
+	retryTimeout   = time.Second * 1
 )
 
 // Create a new distributed resource lock
 func NewResourceLockDistributed(ctx context.Context, redis *redis.Client, ttl time.Duration) (*ResourceLockDistributed, error) {
 	redisLockClient := redislock.New(redis)
 
-	r := &ResourceLockDistributed{ctx: ctx, redisClient: redis, redisLockClient: redisLockClient, lock: &sync.Map{}, ttl: ttl, cond: &sync.Map{}, expiry: make(chan string)}
-
-	go func() {
-		pubsub := redis.Subscribe(ctx, resourceLockChannel)
-		ch := pubsub.Channel()
-
-		for {
-			select {
-			case lockId := <-ch:
-				value, ok := r.cond.Load(lockId.Payload)
-				if !ok {
-					continue
-				}
-				cond := value.(*sync.Cond)
-
-				cond.L.Lock()
-				cond.Broadcast()
-				cond.L.Unlock()
-
-			case lockId := <-r.expiry:
-				go func() {
-					time.Sleep(ttl)
-
-					value, ok := r.cond.Load(lockId)
-					if !ok {
-						return
-					}
-					cond := value.(*sync.Cond)
-
-					cond.L.Lock()
-					cond.Broadcast()
-					cond.L.Unlock()
-				}()
-			}
-		}
-	}()
-
-	return r, nil
+	return &ResourceLockDistributed{ctx: ctx, redisClient: redis, redisLockClient: redisLockClient, lock: &sync.Map{}, ttl: ttl, expiry: make(chan string)}, nil
 }
 
 // Lock the resource
 func (r *ResourceLockDistributed) Lock(id string) {
-	value, _ := r.cond.LoadOrStore(id, sync.NewCond(&sync.Mutex{}))
-	cond := value.(*sync.Cond)
-
-	cond.L.Lock()
-	defer cond.L.Unlock()
-
 	for {
 		redisLock, err := r.redisLockClient.Obtain(r.ctx, id, r.ttl, nil)
 
 		if err != nil {
-			r.expiry <- id
-			cond.Wait()
+			time.Sleep(retryTimeout)
 			continue
 		}
 
@@ -155,8 +110,6 @@ func (r *ResourceLockDistributed) Unlock(id string, processed bool) error {
 		return err
 	}
 	r.lock.Delete(id)
-
-	r.redisClient.Publish(r.ctx, resourceLockChannel, id)
 
 	return nil
 }
