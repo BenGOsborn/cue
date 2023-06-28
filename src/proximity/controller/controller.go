@@ -12,7 +12,7 @@ import (
 
 const (
 	radius   = 5
-	syncTime = time.Second * 10
+	syncTime = time.Second * 60
 )
 
 // Routing logic for all broker messages

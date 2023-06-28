@@ -4,6 +4,8 @@ services:
         build:
             dockerfile: ../Docker/gateway.Dockerfile
             context: ./src
+        depends_on:
+            - redis
         env_file:
             - .env
         environment:
@@ -12,6 +14,8 @@ services:
         build:
             dockerfile: ../Docker/proximity.Dockerfile
             context: ./src
+        depends_on:
+            - redis
         env_file:
             - .env
         environment:
@@ -26,3 +30,5 @@ services:
             - ./nginx/nginx.conf:/etc/nginx/nginx.conf
         env_file:
             - .env
+    redis:
+        image: redis:latest
