@@ -23,7 +23,7 @@ const (
 )
 
 // Process a message
-func Process(logger *log.Logger, broker utils.Broker, session *gwUtils.Session, authenticator *gwUtils.Authenticator) func(string, *gwUtils.Message) error {
+func Process(logger *log.Logger, brokerProximity utils.Broker, session *gwUtils.Session, authenticator *gwUtils.Authenticator) func(string, *gwUtils.Message) error {
 	return func(receiver string, msg *gwUtils.Message) error {
 		logger.Println("process.received: received raw message")
 
@@ -32,22 +32,27 @@ func Process(logger *log.Logger, broker utils.Broker, session *gwUtils.Session, 
 		if err != nil {
 			logger.Println("process.error: ", err)
 
-			return nil
+			return err
 		}
 
 		user, err := authenticator.VerifyToken(sessionData.Token)
 		if err != nil {
 			logger.Println("process.error: ", err)
 
-			return nil
+			return err
 		}
 
 		// Send to broker
 		brokerMsgId := uuid.NewString()
-		brokerMsg := utils.BrokerMessage{Id: brokerMsgId, Receiver: receiver, User: user.Subject, EventType: msg.EventType, Body: msg.Body}
-		broker.Send(&brokerMsg)
 
-		logger.Println("process.sent: sent message to broker")
+		switch msg.EventType {
+		case utils.ProximityRequestNearby, utils.ProximitySendLocation:
+			brokerProximity.Send(&utils.BrokerMessage{Id: brokerMsgId, Receiver: receiver, User: user.Subject, EventType: msg.EventType, Body: msg.Body})
+
+			logger.Println("process.sent: sent message to proximity broker")
+		default:
+			logger.Println("process.error: invalid event type")
+		}
 
 		return nil
 	}
@@ -79,7 +84,12 @@ func main() {
 	}
 	defer redis.Close()
 
-	broker := utils.NewBrokerRedis(ctx, redis, os.Getenv("REDIS_GATEWAY_CHANNEL_IN"))
+	brokerIn := utils.NewBrokerRedis(ctx, redis, os.Getenv("REDIS_GATEWAY_CHANNEL_IN"))
+	if err != nil {
+		logger.Fatalln(fmt.Scan("main.error", err))
+	}
+
+	brokerProximity := utils.NewBrokerRedis(ctx, redis, os.Getenv("REDIS_PROXIMITY_CHANNEL_IN"))
 	if err != nil {
 		logger.Fatalln(fmt.Scan("main.error", err))
 	}
@@ -97,7 +107,7 @@ func main() {
 	session := gwUtils.NewSession(ctx, redis)
 
 	// Start server
-	gwController.Attach(mux, "/ws", connections, broker, lock, logger, Process(logger, broker, session, authenticator))
+	gwController.Attach(mux, "/ws", connections, brokerIn, lock, logger, Process(logger, brokerProximity, session, authenticator))
 	authController.Attach(mux, "/auth", logger, session, authenticator)
 
 	logger.Println("server listening on address", addr)
