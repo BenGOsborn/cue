@@ -20,7 +20,7 @@ type SessionData struct {
 }
 
 const (
-	SessionCookie = "session:cookie"
+	SessionCookie = "session-cookie"
 	SessionExpiry = time.Hour
 )
 
