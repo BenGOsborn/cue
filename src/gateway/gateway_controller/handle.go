@@ -15,7 +15,7 @@ var upgrader = websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024}
 func receive(receiver string, connections *gwUtils.Connections, logger *log.Logger, process func(string, *gwUtils.Message) error) {
 	for {
 		// Read and process messages
-		if ok, err := connections.Apply(receiver, func(receiver string, conn *websocket.Conn) error {
+		if ok, err := connections.RApply(receiver, func(receiver string, conn *websocket.Conn) error {
 			var message gwUtils.Message
 
 			if err := conn.ReadJSON(&message); err != nil {

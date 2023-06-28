@@ -32,3 +32,5 @@ services:
             - .env
     redis:
         image: redis:latest
+
+restart: on-failure

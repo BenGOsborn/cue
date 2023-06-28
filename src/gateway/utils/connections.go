@@ -57,30 +57,25 @@ func (c *Connections) Remove(id string) {
 	c.connections.Delete(id)
 }
 
-// Check if a connection exists
-func (c *Connections) Exists(id string) bool {
+// TODO This would be better to rewrite as a safe wrapper passing the message or returning a value which gets sent by the websocket without exposing the socket
+
+// Apply a function to a particular connection - fn must be read only
+func (c *Connections) RApply(id string, fn func(string, *websocket.Conn) error) (bool, error) {
+	value, ok := c.connections.Load(id)
+	if !ok {
+		return false, nil
+	}
+
+	conn := value.(*websocket.Conn)
+
 	c.lock.LockRead(id)
 	defer c.lock.UnlockRead(id)
 
-	_, ok := c.connections.Load(id)
-	return ok
-}
+	if err := fn(id, conn); err != nil {
+		return false, err
+	}
 
-// Apply a function to all connections
-func (c *Connections) ForEach(fn func(string, *websocket.Conn) error) {
-	c.connections.Range(func(key, value any) bool {
-		id := key.(string)
-		conn := value.(*websocket.Conn)
-
-		c.lock.LockRead(id)
-		defer c.lock.UnlockRead(id)
-
-		if err := fn(id, conn); err != nil {
-			return false
-		}
-
-		return true
-	})
+	return true, nil
 }
 
 // Apply a function to a particular connection
@@ -92,8 +87,8 @@ func (c *Connections) Apply(id string, fn func(string, *websocket.Conn) error) (
 
 	conn := value.(*websocket.Conn)
 
-	c.lock.LockRead(id)
-	defer c.lock.UnlockRead(id)
+	c.lock.LockWrite(id)
+	defer c.lock.UnlockWrite(id)
 
 	if err := fn(id, conn); err != nil {
 		return false, err
