@@ -9,12 +9,13 @@ import (
 
 type Connections struct {
 	connections sync.Map
-	lock        *utils.ResourceLock
+	lock1       *utils.ResourceLock
+	lock2       *utils.ResourceLock
 }
 
 // Create a new connections struct
 func NewConnections() *Connections {
-	return &Connections{connections: sync.Map{}, lock: utils.NewResourceLock()}
+	return &Connections{connections: sync.Map{}, lock1: utils.NewResourceLock(), lock2: utils.NewResourceLock()}
 }
 
 // Close all connections
@@ -22,8 +23,11 @@ func (c *Connections) Close() {
 	c.connections.Range(func(key, value interface{}) bool {
 		id := key.(string)
 
-		c.lock.LockWrite(id)
-		defer c.lock.UnlockWrite(id)
+		c.lock1.LockWrite(id)
+		defer c.lock1.UnlockWrite(id)
+
+		c.lock2.LockWrite(id)
+		defer c.lock2.UnlockWrite(id)
 
 		conn := value.(*websocket.Conn)
 
@@ -35,16 +39,22 @@ func (c *Connections) Close() {
 
 // Add a new connection
 func (c *Connections) Add(id string, conn *websocket.Conn) {
-	c.lock.LockWrite(id)
-	defer c.lock.UnlockWrite(id)
+	c.lock1.LockWrite(id)
+	defer c.lock1.UnlockWrite(id)
+
+	c.lock2.LockWrite(id)
+	defer c.lock2.UnlockWrite(id)
 
 	c.connections.Store(id, conn)
 }
 
 // Remove a connection
 func (c *Connections) Remove(id string) {
-	c.lock.LockWrite(id)
-	defer c.lock.UnlockWrite(id)
+	c.lock1.LockWrite(id)
+	defer c.lock1.UnlockWrite(id)
+
+	c.lock2.LockWrite(id)
+	defer c.lock2.UnlockWrite(id)
 
 	value, ok := c.connections.Load(id)
 	if !ok {
@@ -57,10 +67,7 @@ func (c *Connections) Remove(id string) {
 	c.connections.Delete(id)
 }
 
-// TODO This would be better to rewrite as a safe wrapper passing the message or returning a value which gets sent by the websocket without exposing the socket
-
-// Apply a function to a particular connection - fn must be read only
-func (c *Connections) RApply(id string, fn func(string, *websocket.Conn) error) (bool, error) {
+func (c *Connections) apply(id string, lock *utils.ResourceLock, fn func(string, *websocket.Conn) error) (bool, error) {
 	value, ok := c.connections.Load(id)
 	if !ok {
 		return false, nil
@@ -68,8 +75,8 @@ func (c *Connections) RApply(id string, fn func(string, *websocket.Conn) error) 
 
 	conn := value.(*websocket.Conn)
 
-	c.lock.LockRead(id)
-	defer c.lock.UnlockRead(id)
+	lock.LockWrite(id)
+	defer lock.UnlockWrite(id)
 
 	if err := fn(id, conn); err != nil {
 		return false, err
@@ -78,21 +85,12 @@ func (c *Connections) RApply(id string, fn func(string, *websocket.Conn) error) 
 	return true, nil
 }
 
-// Apply a function to a particular connection
-func (c *Connections) Apply(id string, fn func(string, *websocket.Conn) error) (bool, error) {
-	value, ok := c.connections.Load(id)
-	if !ok {
-		return false, nil
-	}
+// Apply a function to a particular connection for reads
+func (c *Connections) RApply(id string, fn func(string, *websocket.Conn) error) (bool, error) {
+	return c.apply(id, c.lock1, fn)
+}
 
-	conn := value.(*websocket.Conn)
-
-	c.lock.LockWrite(id)
-	defer c.lock.UnlockWrite(id)
-
-	if err := fn(id, conn); err != nil {
-		return false, err
-	}
-
-	return true, nil
+// Apply a function to a particular connection for writes
+func (c *Connections) WApply(id string, fn func(string, *websocket.Conn) error) (bool, error) {
+	return c.apply(id, c.lock2, fn)
 }

@@ -12,7 +12,7 @@ import (
 // Process messages from broker
 func ProcessMessages(connections *gwUtils.Connections, broker utils.Broker, lock *utils.ResourceLockDistributed, logger *log.Logger) {
 	if err := broker.Listen(func(msg *utils.BrokerMessage) bool {
-		if ok, err := connections.Apply(msg.Receiver, func(_ string, conn *websocket.Conn) error {
+		if ok, err := connections.WApply(msg.Receiver, func(_ string, conn *websocket.Conn) error {
 			data, err := json.Marshal(msg)
 
 			if err != nil {

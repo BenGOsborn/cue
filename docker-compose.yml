@@ -10,6 +10,7 @@ services:
             - .env
         environment:
             - ENV=production
+        restart: on-failure
     proximity:
         build:
             dockerfile: ../Docker/proximity.Dockerfile
@@ -20,6 +21,7 @@ services:
             - .env
         environment:
             - ENV=production
+        restart: on-failure
     nginx:
         image: nginx:latest
         depends_on:
@@ -30,7 +32,7 @@ services:
             - ./nginx/nginx.conf:/etc/nginx/nginx.conf
         env_file:
             - .env
+        restart: on-failure
     redis:
         image: redis:latest
-
-restart: on-failure
+        restart: on-failure
