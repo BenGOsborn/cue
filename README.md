@@ -1,5 +1,7 @@
 # Cue
 
+A real-time location service for identifying nearby users.
+
 ## Commands
 
 Start all microservices.
