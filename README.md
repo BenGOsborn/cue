@@ -37,7 +37,7 @@ AUTH0_CALLBACK_URL=YOUR_AUTH0_CALLBACK_URL
 PORT=8080
 ```
 
-2.
+2. Start the application:
 
 ```bash
 ./scripts/start-docker.sh
@@ -48,5 +48,5 @@ PORT=8080
 4. Navigate to the following [link](https://www.piesocket.com/websocket-tester?url=ws://localhost:8080/ws), `Connect`, and start sending messages e.g.
 
 ```
-{ "sessionId": "`session-cookie`", "eventType": 1, "body": "{ \"user\": \"JohnDoe\", \"lat\": 37.7749, \"long\": -122.4194, \"timestamp\": \"2023-06-27T10:30:00Z\" }" }
+{ "sessionId": "session-cookie", "eventType": 1, "body": "{ \"user\": \"JohnDoe\", \"lat\": 37.7749, \"long\": -122.4194, \"timestamp\": \"2023-06-27T10:30:00Z\" }" }
 ```
