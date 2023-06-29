@@ -64,9 +64,9 @@ type ResourceLockDistributed struct {
 }
 
 const (
-	resourcePrefix      = "resource-lock:resource"
-	retryTimeout        = time.Millisecond * 500
-	resourceLockChannel = "resource-lock:lock"
+	resourcePrefix            = "resource-lock:resource"
+	retryTimeout              = time.Millisecond * 500
+	resourceLockChannelPrefix = "resource-lock:lock"
 )
 
 // Create a new distributed resource lock
@@ -78,13 +78,19 @@ func NewResourceLockDistributed(ctx context.Context, redis *redis.Client, ttl ti
 
 // Lock the resource
 func (r *ResourceLockDistributed) Lock(id string) {
-	pubsub := r.redisClient.Subscribe(r.ctx, resourceLockChannel)
+	pubsub := r.redisClient.Subscribe(r.ctx, helpers.FormatKey(resourceLockChannelPrefix, id))
+	ch := pubsub.Channel()
 
 	for {
 		redisLock, err := r.redisLockClient.Obtain(r.ctx, id, r.ttl, nil)
+
 		if err != nil {
-			pubsub.Receive(r.ctx)
-			continue
+			select {
+			case <-ch:
+				continue
+			case <-time.After(r.ttl):
+				continue
+			}
 		}
 
 		r.lock.Store(id, redisLock)
@@ -114,7 +120,7 @@ func (r *ResourceLockDistributed) Unlock(id string, processed bool) error {
 	}
 	r.lock.Delete(id)
 
-	r.redisClient.Publish(r.ctx, resourceLockChannel, "")
+	r.redisClient.Publish(r.ctx, helpers.FormatKey(resourceLockChannelPrefix, id), "")
 
 	return nil
 }
